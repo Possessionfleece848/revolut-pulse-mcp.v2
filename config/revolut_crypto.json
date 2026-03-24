@@ -1,0 +1,18 @@
+{
+  "_meta": {
+    "version": "2.0",
+    "last_updated": "2025-01",
+    "source": "Manually verified against Revolut app",
+    "note": "Edit this file to update the Revolut crypto list — no code changes needed"
+  },
+  "crypto": [
+    "BTC",  "ETH",  "SOL",  "XRP",  "DOGE", "ADA",  "DOT",  "AVAX",
+    "MATIC","LINK", "UNI",  "ATOM", "LTC",  "BCH",  "XLM",  "ALGO",
+    "VET",  "THETA","FIL",  "AAVE", "COMP", "SNX",  "MKR",  "SUSHI",
+    "YFI",  "BAT",  "ZRX",  "ENJ",  "MANA", "SAND", "AXS",  "CHZ",
+    "GALA", "IMX",  "APE",  "NEAR", "FTM",  "HBAR", "ICP",  "ETC",
+    "TRX",  "EOS",  "NEO",  "DASH", "ZEC",  "XMR",  "QTUM", "ONT",
+    "ZIL",  "ICX",  "BNB",  "OP",   "ARB",  "SUI",  "SEI",  "TIA",
+    "PYTH", "JUP"
+  ]
+}

@@ -1,0 +1,63 @@
+version: "3.9"
+
+# ──────────────────────────────────────────────────────────────────────────────
+#  mcprice — Full Stack
+#
+#  Services:
+#    mcp   → MCP server  (stdio/streamable-http)  port 8000
+#    api   → FastAPI HTTP layer                   port 8001
+#
+#  Usage:
+#    docker compose up              # both services
+#    docker compose up mcp          # MCP only
+#    docker compose up api          # API only
+#    docker compose run seo-gen     # one-off SEO page generation
+# ──────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── MCP server (Claude Desktop / Cursor) ──────────────────────────────────
+  mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      MCP_TRANSPORT: http
+      PORT: "8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ── FastAPI HTTP layer (REST API + SEO) ───────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8001:8001"
+    environment:
+      BASE_URL: ${BASE_URL:-http://localhost:8001}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8001/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ── One-off SEO generator (run and exit) ──────────────────────────────────
+  seo-gen:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    environment:
+      BASE_URL: ${BASE_URL:-https://mcprice.fly.dev}
+    command: python seo/generator.py --base-url ${BASE_URL:-https://mcprice.fly.dev}
+    volumes:
+      - ./seo/output:/app/seo/output
+    profiles:
+      - seo
