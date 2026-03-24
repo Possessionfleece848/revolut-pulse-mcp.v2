@@ -1,31 +1,28 @@
 #!/usr/bin/env python3
 """
 ╔══════════════════════════════════════════════════════════════════╗
-║                    mcprice  v2.1                                 ║
+║                    mcprice  v2.0                                 ║
 ║          Real-Time Price MCP Server for Claude/Cursor            ║
 ║                                                                  ║
 ║  Stocks  → Yahoo Finance (no key needed)                         ║
 ║  Crypto  → Binance Public API (no key needed)                    ║
 ║  Revolut → marks assets tradeable on Revolut                     ║
 ║                                                                  ║
-║  v2.1 upgrades:                                                  ║
+║  v2.0 upgrades:                                                  ║
 ║    ✅ TTL in-memory cache (30s stocks, 10s crypto)               ║
 ║    ✅ Retry with exponential backoff (3 attempts)                 ║
 ║    ✅ Yahoo → Binance fallback for stocks                         ║
 ║    ✅ Ticker input validation (regex)                             ║
 ║    ✅ Structured logging                                          ║
 ║    ✅ Semaphore rate limiter (max 5 concurrent calls)             ║
-║    ✅ Config-driven lists (config/*.json — no code changes)       ║
 ╚══════════════════════════════════════════════════════════════════╝
 """
 
 import asyncio
-import json
 import logging
 import os
 import re
 import time
-from pathlib import Path
 from typing import Optional
 
 import httpx
@@ -43,15 +40,7 @@ logger = logging.getLogger("mcprice")
 # ─────────────────────────────────────────────────────────────────────────────
 #  SERVER
 # ─────────────────────────────────────────────────────────────────────────────
-mcp = FastMCP(
-    "mcprice",
-    description=(
-        "Real-time stock & crypto prices. "
-        "Stocks via Yahoo Finance, crypto via Binance. "
-        "No API keys required. "
-        "Companion to revolut-pulse-mcp (insider trades)."
-    ),
-)
+mcp = FastMCP("mcprice")
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  VALIDATION
@@ -126,42 +115,53 @@ async def fetch_with_retry(fn, *args, retries: int = 3, base_delay: float = 0.5)
     raise last_exc
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  CONFIG-DRIVEN REVOLUT LISTS
-#  Edit config/revolut_stocks.json or config/revolut_crypto.json
-#  → no Python code changes needed
+#  REVOLUT LISTS
 # ─────────────────────────────────────────────────────────────────────────────
-_CONFIG_DIR = Path(__file__).parent / "config"
+REVOLUT_STOCKS: dict = {
+    "AAPL":"Apple","MSFT":"Microsoft","GOOGL":"Alphabet A","GOOG":"Alphabet C",
+    "META":"Meta","AMZN":"Amazon","NVDA":"NVIDIA","TSLA":"Tesla","NFLX":"Netflix",
+    "ADBE":"Adobe","CRM":"Salesforce","ORCL":"Oracle","IBM":"IBM","INTC":"Intel",
+    "AMD":"AMD","QCOM":"Qualcomm","TXN":"Texas Instruments","AVGO":"Broadcom",
+    "MU":"Micron","AMAT":"Applied Materials","NOW":"ServiceNow","INTU":"Intuit",
+    "SNOW":"Snowflake","UBER":"Uber","SHOP":"Shopify","SQ":"Block",
+    "PYPL":"PayPal","PLTR":"Palantir","COIN":"Coinbase","MSTR":"MicroStrategy",
+    "JPM":"JPMorgan","BAC":"Bank of America","WFC":"Wells Fargo","GS":"Goldman",
+    "MS":"Morgan Stanley","V":"Visa","MA":"Mastercard","AXP":"Amex",
+    "BRKB":"Berkshire B","BLK":"BlackRock","SCHW":"Schwab",
+    "JNJ":"J&J","PFE":"Pfizer","MRNA":"Moderna","ABBV":"AbbVie",
+    "LLY":"Eli Lilly","MRK":"Merck","AMGN":"Amgen","GILD":"Gilead",
+    "UNH":"UnitedHealth","CVS":"CVS",
+    "XOM":"ExxonMobil","CVX":"Chevron","COP":"ConocoPhillips","OXY":"Occidental",
+    "LMT":"Lockheed Martin","RTX":"RTX/Raytheon","BA":"Boeing","GD":"General Dynamics",
+    "NOC":"Northrop Grumman","LHX":"L3Harris","HII":"Huntington Ingalls",
+    "KO":"Coca-Cola","PEP":"PepsiCo","MCD":"McDonald's","SBUX":"Starbucks",
+    "NKE":"Nike","DIS":"Disney","WMT":"Walmart","COST":"Costco","HD":"Home Depot",
+    "T":"AT&T","VZ":"Verizon","CMCSA":"Comcast",
+    "TSM":"TSMC ADR","ASML":"ASML ADR","LRCX":"Lam Research",
+    "SPY":"S&P 500 ETF","QQQ":"Nasdaq-100 ETF","IWM":"Russell 2000 ETF",
+    "GLD":"Gold ETF","SLV":"Silver ETF","TLT":"20yr Treasury ETF",
+    "XLK":"Tech SPDR","XLE":"Energy SPDR","XLF":"Finance SPDR",
+    "XLV":"Health SPDR","XLI":"Industrial SPDR","ITA":"Aerospace & Defense ETF",
+    "ARKK":"ARK Innovation ETF","VOO":"Vanguard S&P 500","SOXX":"Semiconductor ETF",
+    "DDOG":"Datadog","NET":"Cloudflare","CRWD":"CrowdStrike","PANW":"Palo Alto",
+    "ZS":"Zscaler","FTNT":"Fortinet","SNAP":"Snap","PINS":"Pinterest",
+    "ZM":"Zoom","RBLX":"Roblox","SPOT":"Spotify","LYFT":"Lyft",
+    "HUBS":"HubSpot","TEAM":"Atlassian","TWLO":"Twilio","DOCU":"DocuSign",
+    "OKTA":"Okta","PATH":"UiPath","U":"Unity","AI":"C3.ai",
+}
 
-def _load_config() -> tuple[dict, set]:
-    """Load Revolut lists from config/*.json with inline fallback."""
-    stocks_path = _CONFIG_DIR / "revolut_stocks.json"
-    crypto_path = _CONFIG_DIR / "revolut_crypto.json"
+REVOLUT_CRYPTO: set = {
+    "BTC","ETH","SOL","XRP","DOGE","ADA","DOT","AVAX","MATIC","LINK",
+    "UNI","ATOM","LTC","BCH","XLM","ALGO","VET","THETA","FIL","AAVE",
+    "COMP","SNX","MKR","SUSHI","YFI","BAT","ZRX","ENJ","MANA","SAND",
+    "AXS","CHZ","GALA","IMX","APE","NEAR","FTM","HBAR","ICP","ETC",
+    "TRX","EOS","NEO","DASH","ZEC","XMR","QTUM","ONT","ZIL","ICX",
+    "BNB","OP","ARB","SUI","SEI","TIA","PYTH","JUP",
+}
 
-    if stocks_path.exists():
-        with open(stocks_path) as f:
-            _s: dict = json.load(f).get("stocks", {})
-        logger.info("Loaded %d Revolut stocks from config/revolut_stocks.json", len(_s))
-    else:
-        logger.warning("config/revolut_stocks.json not found — using empty fallback")
-        _s = {}
-
-    if crypto_path.exists():
-        with open(crypto_path) as f:
-            _c: set = set(json.load(f).get("crypto", []))
-        logger.info("Loaded %d Revolut cryptos from config/revolut_crypto.json", len(_c))
-    else:
-        logger.warning("config/revolut_crypto.json not found — using empty fallback")
-        _c = set()
-
-    return _s, _c
-
-
-REVOLUT_STOCKS, REVOLUT_CRYPTO = _load_config()
-
-# Superset of well-known cryptos used for routing (stock vs crypto detection)
-KNOWN_CRYPTO: set = REVOLUT_CRYPTO | {
-    "BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "DOT", "AVAX",
-    "MATIC", "LINK", "UNI", "ATOM", "LTC", "BCH", "BNB", "OP", "ARB",
+KNOWN_CRYPTO: set = {
+    "BTC","ETH","SOL","XRP","DOGE","ADA","DOT","AVAX",
+    "MATIC","LINK","UNI","ATOM","LTC","BCH","BNB","OP","ARB",
 }
 
 HEADERS = {
@@ -505,68 +505,14 @@ async def crypto_top_movers(
     }
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  TOOL 7 — reload_config
-# ─────────────────────────────────────────────────────────────────────────────
-@mcp.tool()
-async def reload_config() -> dict:
-    """
-    Hot-reload the Revolut stocks/crypto lists from config/*.json
-    without restarting the server.
-    Useful after manually editing config/revolut_stocks.json.
-    """
-    global REVOLUT_STOCKS, REVOLUT_CRYPTO, KNOWN_CRYPTO
-    try:
-        REVOLUT_STOCKS, REVOLUT_CRYPTO = _load_config()
-        KNOWN_CRYPTO = REVOLUT_CRYPTO | {
-            "BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "DOT", "AVAX",
-            "MATIC", "LINK", "UNI", "ATOM", "LTC", "BCH", "BNB", "OP", "ARB",
-        }
-        _cache.clear()   # flush stale cache entries
-        logger.info("Config reloaded: %d stocks, %d cryptos", len(REVOLUT_STOCKS), len(REVOLUT_CRYPTO))
-        return {
-            "status":        "ok",
-            "stocks_loaded": len(REVOLUT_STOCKS),
-            "crypto_loaded": len(REVOLUT_CRYPTO),
-            "cache_cleared": True,
-            "message":       "Config hot-reloaded. Cache flushed.",
-        }
-    except Exception as exc:
-        logger.error("reload_config failed: %s", exc)
-        return {"status": "error", "detail": str(exc)}
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-#  TOOL 8 — server_info
-# ─────────────────────────────────────────────────────────────────────────────
-@mcp.tool()
-async def server_info() -> dict:
-    """
-    Returns server status, loaded config sizes, and cache stats.
-    Good for a quick health check from Claude.
-    """
-    cached_keys = len(_cache)
-    live_keys   = sum(1 for _, (_, exp) in _cache.items() if exp > __import__("time").monotonic())
-    return {
-        "version":         "2.1",
-        "status":          "ok",
-        "revolut_stocks":  len(REVOLUT_STOCKS),
-        "revolut_crypto":  len(REVOLUT_CRYPTO),
-        "known_crypto":    len(KNOWN_CRYPTO),
-        "cache_entries":   cached_keys,
-        "cache_live":      live_keys,
-        "transport":       __import__("os").environ.get("MCP_TRANSPORT", "stdio"),
-    }
-
-
-# ─────────────────────────────────────────────────────────────────────────────
 #  ENTRY POINT
 # ─────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     transport = os.environ.get("MCP_TRANSPORT", "stdio")
     if transport == "http":
-        port = int(os.environ.get("PORT", "8000"))
-        logger.info("mcprice v2.1 starting on http://0.0.0.0:%d/mcp", port)
+        port = int(os.environ.get("PORT", "8080"))
+        logger.info("mcprice v2.0 starting on http://0.0.0.0:%d/mcp", port)
         mcp.run(transport="streamable-http", host="0.0.0.0", port=port)
     else:
-        logger.info("mcprice v2.1 starting (stdio mode)")
+        logger.info("mcprice v2.0 starting (stdio mode)")
         mcp.run(transport="stdio")
