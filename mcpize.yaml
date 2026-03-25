@@ -1,0 +1,24 @@
+name: mcprice
+version: "2.0"
+transport: streamable-http
+port: 8000
+entry: app.py
+
+tools:
+  - name: get_price
+    description: Current price + 24h change for one stock or ETF
+
+  - name: get_prices_bulk
+    description: Fetch prices for up to 20 tickers at once
+
+  - name: get_crypto_price
+    description: Real-time crypto price from Binance (BTC, ETH, SOL...)
+
+  - name: price_snapshot
+    description: Full watchlist snapshot — stocks + crypto + market mood
+
+  - name: revolut_price_check
+    description: Price + check if the stock is available on Revolut
+
+  - name: crypto_top_movers
+    description: Top gainers and losers from Binance 24h
