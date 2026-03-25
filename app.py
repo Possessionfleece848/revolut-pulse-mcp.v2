@@ -1,36 +1,41 @@
 #!/usr/bin/env python3
 """
 ╔══════════════════════════════════════════════════════════════════╗
-║                    mcprice  v2.0                                 ║
-║          Real-Time Price MCP Server for Claude/Cursor            ║
+║  mcprice v2.1  (fixed)                                          ║
+║  Real-Time Price MCP Server for Claude/Cursor                   ║
 ║                                                                  ║
-║  Stocks  → Yahoo Finance (no key needed)                         ║
+║  Stocks  → yfinance  (bypasses Yahoo datacenter blocks)          ║
 ║  Crypto  → Binance Public API (no key needed)                    ║
-║  Revolut → marks assets tradeable on Revolut                     ║
+║  Revolut → marks assets tradeable on Revolut                    ║
 ║                                                                  ║
-║  v2.0 upgrades:                                                  ║
-║    ✅ TTL in-memory cache (30s stocks, 10s crypto)               ║
-║    ✅ Retry with exponential backoff (3 attempts)                 ║
-║    ✅ Yahoo → Binance fallback for stocks                         ║
-║    ✅ Ticker input validation (regex)                             ║
-║    ✅ Structured logging                                          ║
-║    ✅ Semaphore rate limiter (max 5 concurrent calls)             ║
+║  v2.1 fixes:                                                     ║
+║  ✅ FIX #1 — Semaphore lazy-init (no more event-loop crash)      ║
+║  ✅ FIX #2 — Yahoo null-result guard (no more IndexError)        ║
+║  ✅ FIX #3 — yfinance replaces raw HTTP (bypasses cloud blocks)  ║
+║  ✅ FIX #4 — Config JSON files actually loaded                   ║
+║  ✅ FIX #6 — Cache stampede protection (in-flight dedup)         ║
+║  ✅ FIX #7 — Proper List[str] typing for MCP                     ║
+║  ✅ FIX #8 — Binance 429 handled with smart backoff              ║
 ╚══════════════════════════════════════════════════════════════════╝
 """
 
 import asyncio
+import json
 import logging
 import os
 import re
 import time
-from typing import Optional
+from pathlib import Path
+from typing import List, Optional
 
 import httpx
+import yfinance as yf
 from fastmcp import FastMCP
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  LOGGING
+# LOGGING
 # ─────────────────────────────────────────────────────────────────────────────
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
@@ -38,14 +43,17 @@ logging.basicConfig(
 logger = logging.getLogger("mcprice")
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  SERVER
+# SERVER
 # ─────────────────────────────────────────────────────────────────────────────
+
 mcp = FastMCP("mcprice")
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  VALIDATION
+# VALIDATION
 # ─────────────────────────────────────────────────────────────────────────────
+
 _VALID_TICKER = re.compile(r"^[A-Z0-9\.\-\^]{1,12}$")
+
 
 def validate_ticker(ticker: str) -> str:
     """Sanitise and validate a ticker symbol. Raises ValueError on bad input."""
@@ -57,48 +65,78 @@ def validate_ticker(ticker: str) -> str:
         )
     return t
 
+
 # ─────────────────────────────────────────────────────────────────────────────
-#  TTL IN-MEMORY CACHE
+# FIX #1 — LAZY SEMAPHORE (no module-level asyncio object)
 # ─────────────────────────────────────────────────────────────────────────────
+
+_semaphore: Optional[asyncio.Semaphore] = None
+
+
+def _get_semaphore() -> asyncio.Semaphore:
+    """Return (or create) the shared semaphore inside the running event loop."""
+    global _semaphore
+    if _semaphore is None:
+        _semaphore = asyncio.Semaphore(5)
+    return _semaphore
+
+
+async def limited_call(fn, *args):
+    async with _get_semaphore():
+        return await fn(*args)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FIX #6 — STAMPEDE-SAFE TTL CACHE
+# ─────────────────────────────────────────────────────────────────────────────
+
 _cache: dict = {}
+_in_flight: dict = {}
+
 
 def ttl_cache(ttl: int = 30):
     """
-    Async TTL decorator.
-    ttl=30  for stocks (Yahoo ~15min delay anyway)
-    ttl=10  for crypto (Binance is real-time, keep fresh)
+    Async TTL decorator with in-flight deduplication.
+    ttl=30 for stocks, ttl=10 for crypto.
     """
     def decorator(func):
         async def wrapper(*args):
             key = f"{func.__name__}:{args}"
             now = time.monotonic()
+
+            # Cache hit
             if key in _cache:
                 data, expiry = _cache[key]
                 if now < expiry:
-                    logger.debug("Cache HIT  %s", key)
+                    logger.debug("Cache HIT %s", key)
                     return data
+
+            # In-flight deduplication — don't hammer provider with concurrent misses
+            if key in _in_flight:
+                logger.debug("Cache IN-FLIGHT wait %s", key)
+                return await asyncio.shield(_in_flight[key])
+
             logger.debug("Cache MISS %s", key)
-            result = await func(*args)
-            _cache[key] = (result, now + ttl)
-            return result
+            task = asyncio.create_task(func(*args))
+            _in_flight[key] = task
+            try:
+                result = await task
+                _cache[key] = (result, time.monotonic() + ttl)
+                return result
+            finally:
+                _in_flight.pop(key, None)
+
         wrapper.__name__ = func.__name__
         return wrapper
     return decorator
 
-# ─────────────────────────────────────────────────────────────────────────────
-#  RATE LIMITER  (max 5 concurrent outbound calls)
-# ─────────────────────────────────────────────────────────────────────────────
-_semaphore = asyncio.Semaphore(5)
-
-async def limited_call(fn, *args):
-    async with _semaphore:
-        return await fn(*args)
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  RETRY WITH EXPONENTIAL BACKOFF
+# RETRY WITH EXPONENTIAL BACKOFF
 # ─────────────────────────────────────────────────────────────────────────────
+
 async def fetch_with_retry(fn, *args, retries: int = 3, base_delay: float = 0.5):
-    """Retry async fn up to retries times with exponential backoff."""
+    """Retry async fn up to `retries` times with exponential backoff."""
     last_exc = Exception("unknown")
     for attempt in range(retries):
         try:
@@ -106,105 +144,174 @@ async def fetch_with_retry(fn, *args, retries: int = 3, base_delay: float = 0.5)
         except Exception as exc:
             last_exc = exc
             if attempt < retries - 1:
-                wait = base_delay * (2 ** attempt)
+                # FIX #8 — give Binance 429 a much longer pause
+                is_rate_limit = "429" in str(exc) or "rate" in str(exc).lower()
+                wait = 60.0 if is_rate_limit else base_delay * (2 ** attempt)
                 logger.warning(
                     "Retry %d/%d for %s — %s (wait %.1fs)",
-                    attempt + 1, retries, getattr(fn, '__name__', str(fn)), exc, wait,
+                    attempt + 1, retries,
+                    getattr(fn, "__name__", str(fn)), exc, wait,
                 )
                 await asyncio.sleep(wait)
     raise last_exc
 
+
 # ─────────────────────────────────────────────────────────────────────────────
-#  REVOLUT LISTS
+# FIX #4 — CONFIG-DRIVEN REVOLUT LISTS (loads JSON files if present)
 # ─────────────────────────────────────────────────────────────────────────────
-REVOLUT_STOCKS: dict = {
-    "AAPL":"Apple","MSFT":"Microsoft","GOOGL":"Alphabet A","GOOG":"Alphabet C",
-    "META":"Meta","AMZN":"Amazon","NVDA":"NVIDIA","TSLA":"Tesla","NFLX":"Netflix",
-    "ADBE":"Adobe","CRM":"Salesforce","ORCL":"Oracle","IBM":"IBM","INTC":"Intel",
-    "AMD":"AMD","QCOM":"Qualcomm","TXN":"Texas Instruments","AVGO":"Broadcom",
-    "MU":"Micron","AMAT":"Applied Materials","NOW":"ServiceNow","INTU":"Intuit",
-    "SNOW":"Snowflake","UBER":"Uber","SHOP":"Shopify","SQ":"Block",
-    "PYPL":"PayPal","PLTR":"Palantir","COIN":"Coinbase","MSTR":"MicroStrategy",
-    "JPM":"JPMorgan","BAC":"Bank of America","WFC":"Wells Fargo","GS":"Goldman",
-    "MS":"Morgan Stanley","V":"Visa","MA":"Mastercard","AXP":"Amex",
-    "BRKB":"Berkshire B","BLK":"BlackRock","SCHW":"Schwab",
-    "JNJ":"J&J","PFE":"Pfizer","MRNA":"Moderna","ABBV":"AbbVie",
-    "LLY":"Eli Lilly","MRK":"Merck","AMGN":"Amgen","GILD":"Gilead",
-    "UNH":"UnitedHealth","CVS":"CVS",
-    "XOM":"ExxonMobil","CVX":"Chevron","COP":"ConocoPhillips","OXY":"Occidental",
-    "LMT":"Lockheed Martin","RTX":"RTX/Raytheon","BA":"Boeing","GD":"General Dynamics",
-    "NOC":"Northrop Grumman","LHX":"L3Harris","HII":"Huntington Ingalls",
-    "KO":"Coca-Cola","PEP":"PepsiCo","MCD":"McDonald's","SBUX":"Starbucks",
-    "NKE":"Nike","DIS":"Disney","WMT":"Walmart","COST":"Costco","HD":"Home Depot",
-    "T":"AT&T","VZ":"Verizon","CMCSA":"Comcast",
-    "TSM":"TSMC ADR","ASML":"ASML ADR","LRCX":"Lam Research",
-    "SPY":"S&P 500 ETF","QQQ":"Nasdaq-100 ETF","IWM":"Russell 2000 ETF",
-    "GLD":"Gold ETF","SLV":"Silver ETF","TLT":"20yr Treasury ETF",
-    "XLK":"Tech SPDR","XLE":"Energy SPDR","XLF":"Finance SPDR",
-    "XLV":"Health SPDR","XLI":"Industrial SPDR","ITA":"Aerospace & Defense ETF",
-    "ARKK":"ARK Innovation ETF","VOO":"Vanguard S&P 500","SOXX":"Semiconductor ETF",
-    "DDOG":"Datadog","NET":"Cloudflare","CRWD":"CrowdStrike","PANW":"Palo Alto",
-    "ZS":"Zscaler","FTNT":"Fortinet","SNAP":"Snap","PINS":"Pinterest",
-    "ZM":"Zoom","RBLX":"Roblox","SPOT":"Spotify","LYFT":"Lyft",
-    "HUBS":"HubSpot","TEAM":"Atlassian","TWLO":"Twilio","DOCU":"DocuSign",
-    "OKTA":"Okta","PATH":"UiPath","U":"Unity","AI":"C3.ai",
+
+_FALLBACK_STOCKS: dict = {
+    "AAPL": "Apple", "MSFT": "Microsoft", "GOOGL": "Alphabet A", "GOOG": "Alphabet C",
+    "META": "Meta", "AMZN": "Amazon", "NVDA": "NVIDIA", "TSLA": "Tesla", "NFLX": "Netflix",
+    "ADBE": "Adobe", "CRM": "Salesforce", "ORCL": "Oracle", "IBM": "IBM", "INTC": "Intel",
+    "AMD": "AMD", "QCOM": "Qualcomm", "TXN": "Texas Instruments", "AVGO": "Broadcom",
+    "MU": "Micron", "AMAT": "Applied Materials", "NOW": "ServiceNow", "INTU": "Intuit",
+    "SNOW": "Snowflake", "UBER": "Uber", "SHOP": "Shopify", "SQ": "Block",
+    "PYPL": "PayPal", "PLTR": "Palantir", "COIN": "Coinbase", "MSTR": "MicroStrategy",
+    "JPM": "JPMorgan", "BAC": "Bank of America", "WFC": "Wells Fargo", "GS": "Goldman",
+    "MS": "Morgan Stanley", "V": "Visa", "MA": "Mastercard", "AXP": "Amex",
+    "BRKB": "Berkshire B", "BLK": "BlackRock", "SCHW": "Schwab",
+    "JNJ": "J&J", "PFE": "Pfizer", "MRNA": "Moderna", "ABBV": "AbbVie",
+    "LLY": "Eli Lilly", "MRK": "Merck", "AMGN": "Amgen", "GILD": "Gilead",
+    "UNH": "UnitedHealth", "CVS": "CVS",
+    "XOM": "ExxonMobil", "CVX": "Chevron", "COP": "ConocoPhillips", "OXY": "Occidental",
+    "LMT": "Lockheed Martin", "RTX": "RTX/Raytheon", "BA": "Boeing", "GD": "General Dynamics",
+    "NOC": "Northrop Grumman", "LHX": "L3Harris", "HII": "Huntington Ingalls",
+    "KO": "Coca-Cola", "PEP": "PepsiCo", "MCD": "McDonald's", "SBUX": "Starbucks",
+    "NKE": "Nike", "DIS": "Disney", "WMT": "Walmart", "COST": "Costco", "HD": "Home Depot",
+    "T": "AT&T", "VZ": "Verizon", "CMCSA": "Comcast",
+    "TSM": "TSMC ADR", "ASML": "ASML ADR", "LRCX": "Lam Research",
+    "SPY": "S&P 500 ETF", "QQQ": "Nasdaq-100 ETF", "IWM": "Russell 2000 ETF",
+    "GLD": "Gold ETF", "SLV": "Silver ETF", "TLT": "20yr Treasury ETF",
+    "XLK": "Tech SPDR", "XLE": "Energy SPDR", "XLF": "Finance SPDR",
+    "XLV": "Health SPDR", "XLI": "Industrial SPDR", "ITA": "Aerospace & Defense ETF",
+    "ARKK": "ARK Innovation ETF", "VOO": "Vanguard S&P 500", "SOXX": "Semiconductor ETF",
+    "DDOG": "Datadog", "NET": "Cloudflare", "CRWD": "CrowdStrike", "PANW": "Palo Alto",
+    "ZS": "Zscaler", "FTNT": "Fortinet", "SNAP": "Snap", "PINS": "Pinterest",
+    "ZM": "Zoom", "RBLX": "Roblox", "SPOT": "Spotify", "LYFT": "Lyft",
+    "HUBS": "HubSpot", "TEAM": "Atlassian", "TWLO": "Twilio", "DOCU": "DocuSign",
+    "OKTA": "Okta", "PATH": "UiPath", "U": "Unity", "AI": "C3.ai",
 }
 
-REVOLUT_CRYPTO: set = {
-    "BTC","ETH","SOL","XRP","DOGE","ADA","DOT","AVAX","MATIC","LINK",
-    "UNI","ATOM","LTC","BCH","XLM","ALGO","VET","THETA","FIL","AAVE",
-    "COMP","SNX","MKR","SUSHI","YFI","BAT","ZRX","ENJ","MANA","SAND",
-    "AXS","CHZ","GALA","IMX","APE","NEAR","FTM","HBAR","ICP","ETC",
-    "TRX","EOS","NEO","DASH","ZEC","XMR","QTUM","ONT","ZIL","ICX",
-    "BNB","OP","ARB","SUI","SEI","TIA","PYTH","JUP",
+_FALLBACK_CRYPTO: set = {
+    "BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "DOT", "AVAX", "MATIC", "LINK",
+    "UNI", "ATOM", "LTC", "BCH", "XLM", "ALGO", "VET", "THETA", "FIL", "AAVE",
+    "COMP", "SNX", "MKR", "SUSHI", "YFI", "BAT", "ZRX", "ENJ", "MANA", "SAND",
+    "AXS", "CHZ", "GALA", "IMX", "APE", "NEAR", "FTM", "HBAR", "ICP", "ETC",
+    "TRX", "EOS", "NEO", "DASH", "ZEC", "XMR", "QTUM", "ONT", "ZIL", "ICX",
+    "BNB", "OP", "ARB", "SUI", "SEI", "TIA", "PYTH", "JUP",
 }
+
+
+def _load_config() -> tuple[dict, set]:
+    """
+    FIX #4: Load Revolut lists from config/*.json if they exist,
+    otherwise fall back to hardcoded dicts above.
+    """
+    base = Path(__file__).parent / "config"
+
+    # --- stocks ---
+    stocks_path = base / "revolut_stocks.json"
+    if stocks_path.exists():
+        try:
+            with open(stocks_path, encoding="utf-8") as f:
+                data = json.load(f)
+            stocks = data.get("stocks", data)   # supports both {stocks:{}} and flat {}
+            logger.info("Loaded %d stocks from %s", len(stocks), stocks_path)
+        except Exception as e:
+            logger.warning("Could not load %s: %s — using fallback", stocks_path, e)
+            stocks = _FALLBACK_STOCKS
+    else:
+        logger.info("config/revolut_stocks.json not found — using built-in list")
+        stocks = _FALLBACK_STOCKS
+
+    # --- crypto ---
+    crypto_path = base / "revolut_crypto.json"
+    if crypto_path.exists():
+        try:
+            with open(crypto_path, encoding="utf-8") as f:
+                data = json.load(f)
+            crypto_list = data.get("crypto", data) if isinstance(data, dict) else data
+            crypto = set(crypto_list)
+            logger.info("Loaded %d crypto from %s", len(crypto), crypto_path)
+        except Exception as e:
+            logger.warning("Could not load %s: %s — using fallback", crypto_path, e)
+            crypto = _FALLBACK_CRYPTO
+    else:
+        logger.info("config/revolut_crypto.json not found — using built-in list")
+        crypto = _FALLBACK_CRYPTO
+
+    return stocks, crypto
+
+
+REVOLUT_STOCKS, REVOLUT_CRYPTO = _load_config()
 
 KNOWN_CRYPTO: set = {
-    "BTC","ETH","SOL","XRP","DOGE","ADA","DOT","AVAX",
-    "MATIC","LINK","UNI","ATOM","LTC","BCH","BNB","OP","ARB",
-}
-
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (compatible; mcprice/2.0; "
-        "+https://github.com/gepappas98/mcprice)"
-    )
+    "BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "DOT", "AVAX",
+    "MATIC", "LINK", "UNI", "ATOM", "LTC", "BCH", "BNB", "OP", "ARB",
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  PROVIDER LAYER — Yahoo Finance
+# FIX #3 — PROVIDER LAYER: yfinance (no datacenter blocking)
 # ─────────────────────────────────────────────────────────────────────────────
+
 @ttl_cache(ttl=30)
 async def _yahoo_quote(ticker: str) -> dict:
-    """Yahoo Finance v8 chart endpoint — cached 30 seconds."""
-    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
-    logger.info("Yahoo fetch: %s", ticker)
-    async with httpx.AsyncClient(timeout=10, follow_redirects=True) as c:
-        r = await c.get(url, params={"interval": "1d", "range": "2d"}, headers=HEADERS)
-        r.raise_for_status()
-        data = r.json()
+    """
+    FIX #3: Uses yfinance instead of raw Yahoo Finance HTTP.
+    yfinance handles cookie/crumb automatically and works from cloud IPs.
+    FIX #2: Explicit null-result guard — no more IndexError.
+    Runs in executor so it doesn't block the event loop.
+    """
+    logger.info("yfinance fetch: %s", ticker)
 
-    meta      = data["chart"]["result"][0]["meta"]
-    price     = meta.get("regularMarketPrice", 0.0)
-    prev      = meta.get("chartPreviousClose") or meta.get("previousClose", price)
-    change    = price - prev
-    change_pct = (change / prev * 100) if prev else 0.0
+    def _sync_fetch():
+        t = yf.Ticker(ticker)
+        info = t.fast_info
 
-    return {
-        "ticker":     ticker,
-        "name":       meta.get("longName") or meta.get("shortName") or ticker,
-        "price":      round(price, 4),
-        "change":     round(change, 4),
-        "change_pct": round(change_pct, 2),
-        "volume":     meta.get("regularMarketVolume", 0),
-        "market_cap": meta.get("marketCap"),
-        "currency":   meta.get("currency", "USD"),
-        "source":     "Yahoo Finance",
-    }
+        # FIX #2 — guard against missing price data
+        price = getattr(info, "last_price", None)
+        if price is None or price == 0:
+            raise ValueError(f"yfinance returned no price data for '{ticker}'")
+
+        prev_close = getattr(info, "previous_close", None) or price
+        change = price - prev_close
+        change_pct = (change / prev_close * 100) if prev_close else 0.0
+
+        long_name = getattr(info, "exchange", None)  # fast_info doesn't have longName
+        # Try full info for name (cached by yfinance)
+        try:
+            full = t.info
+            name = full.get("longName") or full.get("shortName") or ticker
+            market_cap = full.get("marketCap")
+            volume = full.get("regularMarketVolume", 0)
+            currency = full.get("currency", "USD")
+        except Exception:
+            name = ticker
+            market_cap = None
+            volume = 0
+            currency = "USD"
+
+        return {
+            "ticker": ticker,
+            "name": name,
+            "price": round(float(price), 4),
+            "change": round(float(change), 4),
+            "change_pct": round(float(change_pct), 2),
+            "volume": volume,
+            "market_cap": market_cap,
+            "currency": currency,
+            "source": "Yahoo Finance (yfinance)",
+        }
+
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _sync_fetch)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  PROVIDER LAYER — Binance
+# PROVIDER LAYER — Binance
 # ─────────────────────────────────────────────────────────────────────────────
+
 @ttl_cache(ttl=10)
 async def _binance_ticker(symbol: str) -> dict:
     """Binance 24h ticker — cached 10 seconds."""
@@ -217,70 +324,80 @@ async def _binance_ticker(symbol: str) -> dict:
             "https://api.binance.com/api/v3/ticker/24hr",
             params={"symbol": sym},
         )
+        # FIX #8 — explicit 429 handling
+        if r.status_code == 429:
+            retry_after = int(r.headers.get("Retry-After", 60))
+            raise RuntimeError(f"429 rate limited by Binance, retry after {retry_after}s")
         r.raise_for_status()
         d = r.json()
-
     base = sym.replace("USDT", "")
     return {
-        "ticker":         base,
-        "pair":           sym,
-        "price":          round(float(d["lastPrice"]), 6),
-        "change":         round(float(d["priceChange"]), 6),
-        "change_pct":     round(float(d["priceChangePercent"]), 2),
-        "high_24h":       round(float(d["highPrice"]), 6),
-        "low_24h":        round(float(d["lowPrice"]), 6),
+        "ticker": base,
+        "pair": sym,
+        "price": round(float(d["lastPrice"]), 6),
+        "change": round(float(d["priceChange"]), 6),
+        "change_pct": round(float(d["priceChangePercent"]), 2),
+        "high_24h": round(float(d["highPrice"]), 6),
+        "low_24h": round(float(d["lowPrice"]), 6),
         "volume_usd_24h": round(float(d["quoteVolume"]), 0),
-        "currency":       "USDT",
-        "source":         "Binance",
+        "currency": "USDT",
+        "source": "Binance",
         "revolut_crypto": base in REVOLUT_CRYPTO,
     }
 
+
 # ─────────────────────────────────────────────────────────────────────────────
-#  FALLBACK  Yahoo → Binance
+# FALLBACK yfinance → Binance
 # ─────────────────────────────────────────────────────────────────────────────
+
 async def _get_stock_price(ticker: str) -> dict:
     try:
         return await fetch_with_retry(limited_call, _yahoo_quote, ticker)
     except Exception as exc:
-        logger.warning("Yahoo failed for %s (%s) — trying Binance fallback", ticker, exc)
+        logger.warning("yfinance failed for %s (%s) — trying Binance fallback", ticker, exc)
         try:
             return await fetch_with_retry(limited_call, _binance_ticker, ticker)
         except Exception as exc2:
             logger.error("Both providers failed for %s: %s", ticker, exc2)
             return {"ticker": ticker, "error": str(exc2), "source": "all providers failed"}
 
+
 # ─────────────────────────────────────────────────────────────────────────────
-#  HELPERS
+# HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
+
 def _arrow(change_pct: float) -> str:
-    if change_pct > 2:  return "🚀"
-    if change_pct > 0:  return "📈"
+    if change_pct > 2: return "🚀"
+    if change_pct > 0: return "📈"
     if change_pct < -2: return "🔻"
-    if change_pct < 0:  return "📉"
+    if change_pct < 0: return "📉"
     return "➡️"
 
+
 def _enrich_stock(q: dict) -> dict:
-    t  = q.get("ticker", "")
+    t = q.get("ticker", "")
     q["revolut_available"] = t in REVOLUT_STOCKS
     if t in REVOLUT_STOCKS:
         q["revolut_name"] = REVOLUT_STOCKS[t]
-    cp   = q.get("change_pct", 0)
+    cp = q.get("change_pct", 0)
     sign = "+" if cp >= 0 else ""
-    q["emoji"]   = _arrow(cp)
+    q["emoji"] = _arrow(cp)
     q["summary"] = (
-        f"{q['emoji']} {t}: ${q.get('price','?')} ({sign}{cp}%)"
+        f"{q['emoji']} {t}: ${q.get('price', '?')} ({sign}{cp}%)"
         + (" 💳 Revolut" if q["revolut_available"] else "")
     )
     return q
 
+
 # ─────────────────────────────────────────────────────────────────────────────
-#  TOOL 1 — get_price
+# TOOL 1 — get_price
 # ─────────────────────────────────────────────────────────────────────────────
+
 @mcp.tool()
 async def get_price(ticker: str) -> dict:
     """
     Current price for one stock or ETF.
-    Source: Yahoo Finance (30s cache). Falls back to Binance on failure.
+    Source: yfinance (30s cache). Falls back to Binance on failure.
 
     Args:
         ticker: Symbol e.g. "NVDA", "SPY", "LMT"
@@ -289,15 +406,16 @@ async def get_price(ticker: str) -> dict:
         ticker = validate_ticker(ticker)
     except ValueError as e:
         return {"error": str(e)}
-
     quote = await _get_stock_price(ticker)
     return _enrich_stock(quote) if quote else {"ticker": ticker, "error": "No data"}
 
+
 # ─────────────────────────────────────────────────────────────────────────────
-#  TOOL 2 — get_prices_bulk
+# TOOL 2 — get_prices_bulk
 # ─────────────────────────────────────────────────────────────────────────────
+
 @mcp.tool()
-async def get_prices_bulk(tickers: list) -> dict:
+async def get_prices_bulk(tickers: List[str]) -> dict:  # FIX #7 — List[str]
     """
     Prices for multiple stocks/ETFs at once (max 20).
 
@@ -311,21 +429,23 @@ async def get_prices_bulk(tickers: list) -> dict:
         except ValueError as e:
             errors.append({"ticker": t, "error": str(e)})
 
-    quotes  = await asyncio.gather(*[_get_stock_price(t) for t in validated])
+    quotes = await asyncio.gather(*[_get_stock_price(t) for t in validated])
     results = [_enrich_stock(q) for q in quotes if q]
-    valid   = [r for r in results if "error" not in r]
+    valid = [r for r in results if "error" not in r]
 
     return {
-        "count":   len(results),
+        "count": len(results),
         "results": results,
-        "errors":  errors,
+        "errors": errors,
         "gainers": sorted(valid, key=lambda x: x.get("change_pct", 0), reverse=True)[:3],
         "losers":  sorted(valid, key=lambda x: x.get("change_pct", 0))[:3],
     }
 
+
 # ─────────────────────────────────────────────────────────────────────────────
-#  TOOL 3 — get_crypto_price
+# TOOL 3 — get_crypto_price
 # ─────────────────────────────────────────────────────────────────────────────
+
 @mcp.tool()
 async def get_crypto_price(symbol: str) -> dict:
     """
@@ -335,7 +455,7 @@ async def get_crypto_price(symbol: str) -> dict:
         symbol: e.g. "BTC", "ETH", "SOL" (no USDT suffix needed)
     """
     try:
-        symbol = validate_ticker(symbol.replace("USDT","").replace("/",""))
+        symbol = validate_ticker(symbol.replace("USDT", "").replace("/", ""))
     except ValueError as e:
         return {"error": str(e)}
 
@@ -346,30 +466,32 @@ async def get_crypto_price(symbol: str) -> dict:
         return {"ticker": symbol, "error": str(exc)}
 
     if result:
-        cp   = result.get("change_pct", 0)
+        cp = result.get("change_pct", 0)
         sign = "+" if cp >= 0 else ""
-        result["emoji"]   = _arrow(cp)
+        result["emoji"] = _arrow(cp)
         result["summary"] = (
-            f"{result['emoji']} {symbol}: ${result.get('price','?')} "
+            f"{result['emoji']} {symbol}: ${result.get('price', '?')} "
             f"({sign}{cp}% 24h)"
             + (" 💳 Revolut Crypto" if result.get("revolut_crypto") else "")
         )
     return result or {"symbol": symbol, "error": "Not found on Binance"}
 
+
 # ─────────────────────────────────────────────────────────────────────────────
-#  TOOL 4 — price_snapshot
+# TOOL 4 — price_snapshot
 # ─────────────────────────────────────────────────────────────────────────────
+
 @mcp.tool()
-async def price_snapshot(tickers: Optional[list] = None) -> dict:
+async def price_snapshot(tickers: Optional[List[str]] = None) -> dict:  # FIX #7
     """
     Rich snapshot for a watchlist (stocks + crypto).
     Uses default watchlist if no tickers provided.
     """
-    DEFAULT_STOCKS = ["NVDA","AAPL","MSFT","TSLA","LMT","RTX","GLD","SPY","META","AMZN"]
-    DEFAULT_CRYPTO = ["BTC","ETH","SOL","XRP","DOGE"]
+    DEFAULT_STOCKS = ["NVDA", "AAPL", "MSFT", "TSLA", "LMT", "RTX", "GLD", "SPY", "META", "AMZN"]
+    DEFAULT_CRYPTO = ["BTC", "ETH", "SOL", "XRP", "DOGE"]
 
     if tickers:
-        upper       = [t.upper().strip() for t in tickers[:25]]
+        upper = [t.upper().strip() for t in tickers[:25]]
         stock_list  = [t for t in upper if t not in KNOWN_CRYPTO]
         crypto_list = [t for t in upper if t in KNOWN_CRYPTO]
     else:
@@ -388,7 +510,7 @@ async def price_snapshot(tickers: Optional[list] = None) -> dict:
             crypto_out.append(q)
 
     all_valid = stocks_out + crypto_out
-    avg_chg   = sum(x.get("change_pct", 0) for x in all_valid) / len(all_valid) if all_valid else 0
+    avg_chg = sum(x.get("change_pct", 0) for x in all_valid) / len(all_valid) if all_valid else 0
     top_gainer = max(all_valid, key=lambda x: x.get("change_pct", 0), default=None)
     top_loser  = min(all_valid, key=lambda x: x.get("change_pct", 0), default=None)
 
@@ -396,17 +518,19 @@ async def price_snapshot(tickers: Optional[list] = None) -> dict:
         "stocks": stocks_out,
         "crypto": crypto_out,
         "summary": {
-            "total_assets":   len(all_valid),
+            "total_assets": len(all_valid),
             "avg_change_pct": round(avg_chg, 2),
-            "market_mood":    "🟢 Risk-On" if avg_chg > 0 else "🔴 Risk-Off",
+            "market_mood": "🟢 Risk-On" if avg_chg > 0 else "🔴 Risk-Off",
             "top_gainer": {"ticker": top_gainer["ticker"], "change_pct": top_gainer.get("change_pct")} if top_gainer else None,
             "top_loser":  {"ticker": top_loser["ticker"],  "change_pct": top_loser.get("change_pct")}  if top_loser  else None,
         },
     }
 
+
 # ─────────────────────────────────────────────────────────────────────────────
-#  TOOL 5 — revolut_price_check
+# TOOL 5 — revolut_price_check
 # ─────────────────────────────────────────────────────────────────────────────
+
 @mcp.tool()
 async def revolut_price_check(ticker: str) -> dict:
     """
@@ -420,33 +544,33 @@ async def revolut_price_check(ticker: str) -> dict:
     except ValueError as e:
         return {"error": str(e)}
 
-    quote  = await _get_stock_price(ticker)
+    quote = await _get_stock_price(ticker)
     on_rev = ticker in REVOLUT_STOCKS
 
     if not quote or "error" in quote:
         return {
-            "ticker":            ticker,
+            "ticker": ticker,
             "revolut_available": on_rev,
-            "price":             None,
+            "price": None,
             "quick_verdict": (
                 f"{'✅' if on_rev else '❌'} {ticker} "
                 f"{'on Revolut' if on_rev else 'NOT on Revolut'} — price unavailable"
             ),
         }
 
-    cp   = quote.get("change_pct", 0)
+    cp = quote.get("change_pct", 0)
     sign = "+" if cp >= 0 else ""
     name = REVOLUT_STOCKS.get(ticker, quote.get("name", ticker))
 
     return {
-        "ticker":            ticker,
-        "name":              name,
+        "ticker": ticker,
+        "name": name,
         "revolut_available": on_rev,
-        "price":             quote["price"],
-        "change_pct":        cp,
-        "volume":            quote.get("volume"),
-        "currency":          quote.get("currency", "USD"),
-        "emoji":             _arrow(cp),
+        "price": quote["price"],
+        "change_pct": cp,
+        "volume": quote.get("volume"),
+        "currency": quote.get("currency", "USD"),
+        "emoji": _arrow(cp),
         "quick_verdict": (
             f"{'✅ 💳' if on_rev else '❌'} {ticker} ({name}): "
             f"${quote['price']} ({sign}{cp}%) "
@@ -454,9 +578,11 @@ async def revolut_price_check(ticker: str) -> dict:
         ),
     }
 
+
 # ─────────────────────────────────────────────────────────────────────────────
-#  TOOL 6 — crypto_top_movers
+# TOOL 6 — crypto_top_movers
 # ─────────────────────────────────────────────────────────────────────────────
+
 @mcp.tool()
 async def crypto_top_movers(
     limit: int = 10,
@@ -472,6 +598,10 @@ async def crypto_top_movers(
     try:
         async with httpx.AsyncClient(timeout=15) as c:
             r = await c.get("https://api.binance.com/api/v3/ticker/24hr")
+            # FIX #8 — 429 guard here too
+            if r.status_code == 429:
+                retry_after = int(r.headers.get("Retry-After", 60))
+                return {"error": f"Binance rate limited, retry after {retry_after}s"}
             r.raise_for_status()
             all_tickers = r.json()
     except Exception as exc:
@@ -498,21 +628,26 @@ async def crypto_top_movers(
         })
 
     return {
-        "gainers":             sorted(filtered, key=lambda x: x["change_pct"], reverse=True)[:limit],
-        "losers":              sorted(filtered, key=lambda x: x["change_pct"])[:limit],
-        "revolut_movers":      [x for x in sorted(filtered, key=lambda x: abs(x["change_pct"]), reverse=True) if x["revolut"]][:limit],
+        "gainers": sorted(filtered, key=lambda x: x["change_pct"], reverse=True)[:limit],
+        "losers":  sorted(filtered, key=lambda x: x["change_pct"])[:limit],
+        "revolut_movers": [
+            x for x in sorted(filtered, key=lambda x: abs(x["change_pct"]), reverse=True)
+            if x["revolut"]
+        ][:limit],
         "total_pairs_scanned": len(filtered),
     }
 
+
 # ─────────────────────────────────────────────────────────────────────────────
-#  ENTRY POINT
+# ENTRY POINT
 # ─────────────────────────────────────────────────────────────────────────────
+
 if __name__ == "__main__":
     transport = os.environ.get("MCP_TRANSPORT", "stdio")
     if transport == "http":
         port = int(os.environ.get("PORT", "8080"))
-        logger.info("mcprice v2.0 starting on http://0.0.0.0:%d/mcp", port)
+        logger.info("mcprice v2.1 starting on http://0.0.0.0:%d/mcp", port)
         mcp.run(transport="streamable-http", host="0.0.0.0", port=port)
     else:
-        logger.info("mcprice v2.0 starting (stdio mode)")
+        logger.info("mcprice v2.1 starting (stdio mode)")
         mcp.run(transport="stdio")
