@@ -4,7 +4,7 @@ version: "2.0"
 author: gepappas98
 repository: https://github.com/gepappas98/revolut-pulse-mcp.v2
 transport: streamable-http
-port: 8000
+port: 8080
 entry: app.py
 
 keywords:
