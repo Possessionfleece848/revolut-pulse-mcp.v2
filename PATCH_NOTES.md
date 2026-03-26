@@ -1,115 +1,149 @@
-# mcprice v2.1 — Patch Notes
+# mcprice v3.0 â€” Patch Notes
 
-## Files changed
+## Summary
+
+| | v2.2 | v3.0 |
+|--|------|------|
+| MCP Tools | 10 | **16** |
+| REST Endpoints | 10 | **16** |
+| Data Sources | 2 (yfinance, Binance) | **4** (+ alternative.me, SEC EDGAR) |
+| Signal types | Price + Revolut | Price + Revolut + **Technical + Sentiment + Insider** |
+
+---
+
+## New Files
 
 | File | Status |
 |------|--------|
-| `app.py` | ✅ Fixed (7 bugs) |
-| `requirements.txt` | ✅ Fixed (added yfinance) |
-| `Dockerfile` | ✅ Fixed (2 bugs) |
-| `fly.toml` | ✅ Fixed (1 bug) |
-| `docker-compose.yml` | ✅ Fixed (2 bugs) |
-| `mcp.json` | ✅ Fixed (1 bug) |
+| `app.py` | âœ… +6 tools (v3.0) |
+| `api/main.py` | âœ… +6 endpoints (v3.0) |
+| `mcpize.yaml` | âœ… Updated (v3.0, 16 tools) |
+| `PATCH_NOTES.md` | âœ… This file |
 
 ---
 
-## Bug list (all 13)
+## New Tools / Endpoints
 
-### app.py
+### Tool 11 / GET `/fear-greed`
+**Fear & Greed Index** â€” `alternative.me` (no API key)
+- Current score 0â€“100 with classification (Extreme Fear â†’ Extreme Greed)
+- 5-day history (today, yesterday, last week, 2 weeks, last month)
+- Automated trading bias signal ("Strong BUY" at <25, "SELL" at >75)
+- Revolut entry tip embedded in response
 
-**#1 — Semaphore module-level crash** `🔴 Critical`
-`asyncio.Semaphore(5)` at module level crashes Python 3.12 with
-`RuntimeError: no running event loop`. Fixed with lazy init inside `_get_semaphore()`.
-
-**#2 — Yahoo null-result IndexError** `🔴 Critical`
-`data["chart"]["result"][0]` raised `IndexError` / `TypeError` when Yahoo returned
-`"result": null` for unknown tickers or rate-limiting. Added explicit null guard.
-
-**#3 — Yahoo Finance blocked on cloud IPs** `🔴 Critical`
-Railway / Fly.io / Render IPs get 401/429/503 from Yahoo's raw API. Replaced raw
-`httpx` calls with `yfinance` which handles cookie/crumb auth automatically.
-
-**#4 — Config JSON files never loaded** `🟠 High`
-`config/revolut_stocks.json` and `config/revolut_crypto.json` were completely
-ignored — `app.py` used only hardcoded dicts. Added `_load_config()` with graceful
-fallback.
-
-**#6 — Cache stampede** `🟠 Medium`
-Concurrent cache misses for the same ticker fired multiple simultaneous HTTP
-requests. Fixed with `_in_flight` dict deduplication.
-
-**#7 — Untyped `list` parameter** `🟡 Low`
-`tickers: list` is ambiguous in MCP schema. Changed to `List[str]` everywhere.
-
-**#8 — Binance 429 not handled separately** `🟡 Low`
-HTTP 429 was treated identically to other errors (0.5s backoff). Now detects
-`Retry-After` header and waits 60s.
+**Why it matters:** Fear & Greed <25 = historically best entry for Revolut blue chips.
+Drives affiliate clicks when users act on the signal.
 
 ---
 
-### Dockerfile
+### Tool 12 / GET `/earnings?tickers=NVDA,AAPL,META`
+**Earnings Calendar** â€” `yfinance` (no API key)
+- Next earnings date per ticker
+- EPS estimate + Revenue estimate
+- Revolut tradeable flag + action tip per ticker
+- Sorted upcoming list with Revolut opportunities first
 
-**#9 — `config/` folder not copied** `🔴 Critical`
-`COPY config/ ./config/` was missing. Even after fixing `_load_config()` in
-`app.py`, the JSON files never existed inside the Docker image — always fell back
-to hardcoded lists.
-
-**#10 — PORT mismatch** `🟠 High`
-`Dockerfile` defaulted `PORT=8000` but `fly.toml` injects `PORT=8080`. The app
-listened on 8000 while Fly.io forwarded to 8080 → connection refused. Fixed
-`ENV PORT=8080` and `EXPOSE 8080`.
+**Why it matters:** Pre-earnings is the highest-intent moment for a retail trader.
+"NVDA reports in 3 days, available on Revolut" â†’ direct conversion.
 
 ---
 
-### fly.toml
+### Tool 13 / GET `/signals/{ticker}`
+**Technical Signals** â€” `yfinance` historical data
+- RSI-14, SMA20, SMA50, EMA9, MACD (12/26/9)
+- Per-indicator signal with emoji (ðŸŸ¢/ðŸ”´/âšª)
+- Overall signal: STRONG BUY / MILD BUY / NEUTRAL / MILD SELL / STRONG SELL
+- Configurable period: `1mo`, `3mo`, `6mo`, `1y`
+- Revolut tradeable flag + direct action tip
 
-**#11 — Cold start kills MCP sessions** `🔴 Critical`
-`min_machines_running = 0` let the VM sleep between requests. MCP clients
-expect responses in <2s; Fly.io cold starts take 10–20s → timeout / disconnect.
-Changed to `min_machines_running = 1`.
-
----
-
-### docker-compose.yml
-
-**#12 — Healthcheck hit wrong endpoint** `🟠 High`
-`httpx.get('.../health')` on the MCP service returned 404 (MCP server has no
-`/health` route, only `/mcp`). Docker marked container as unhealthy and kept
-restarting it. Fixed to `HEAD /mcp`.
-
-**#13 — Deprecated `version` key** `🟡 Low`
-`version: "3.9"` is ignored by modern Docker Compose and produces warnings.
-Removed.
+**Why it matters:** "Should I buy X?" is the #1 trader question.
+RSI + MACD answer it automatically â†’ keeps users returning daily.
 
 ---
 
-### mcp.json
+### Tool 14 / GET `/insider-flow`
+**SEC Form 4 Insider Flow Scanner** â€” GitHub Actions (updates every 2h)
+- Live buy/sell counts + buy/sell ratio
+- Cluster buy detection (â‰¥2 insiders buying same ticker)
+- Top 10 buys by dollar value with Revolut flags
+- Market signal: BULLISH / BEARISH / NEUTRAL
+- Links to InsiderFlow Pro screener for full UI
 
-**#5 (README) — Wrong clone URL** `🟠 High`
-README said `git clone https://github.com/gepappas98/mcprice.git` (wrong repo).
-`mcp.json` also referenced wrong paths. Fixed to correct repo name and added both
-local (uv) and remote (streamable-http) configs.
+**Why it matters:** Cross-promotes `revolut-pulse.lovable.app` â€” your other project.
+Creates a data loop: GitHub Actions â†’ MCP â†’ InsiderFlow Pro â†’ Revolut affiliate.
 
 ---
 
-## Quick install (after cloning correct repo)
+### Tool 15 / GET `/funding-rates`
+**Crypto Funding Rates** â€” Binance Perpetual Futures (no API key)
+- Per-coin funding rate % (8h) + annualized %
+- Trading bias: bullish/bearish with extreme alerts
+- Contrarian signal: extreme positive = crowded longs (risk), negative = short squeeze
+- Revolut Crypto flag per coin
+
+**Why it matters:** Professional traders check funding rates daily.
+High-intent audience â†’ Binance affiliate (50% fee share) conversion.
+
+---
+
+### Tool 16 / POST `/alert-check`
+**Price Alert Monitor** â€” yfinance + Binance
+- Multi-ticker target monitoring (up to 20 alerts per call)
+- Supports "above" and "below" direction
+- Instant triggered/pending verdict per alert
+- Revolut flag + direct trade CTA on triggered alerts
+
+**Why it matters:** Creates daily return habit. Users come back repeatedly to check
+if their targets have been hit â†’ more sessions â†’ more affiliate exposure.
+
+---
+
+## No Breaking Changes
+
+All v2.2 tools and endpoints remain identical. v3.0 is purely additive.
+
+---
+
+## Quick Deploy
 
 ```bash
-# 1. Clone
-git clone https://github.com/gepappas98/revolut-pulse-mcp.v2.git
-cd revolut-pulse-mcp.v2
+# Pull latest
+git pull origin main
 
-# 2. Local MCP mode (stdio)
-uv run --with fastmcp,httpx,yfinance python app.py
+# Local test
+uv run --with fastmcp,httpx,yfinance,pandas python app.py
 
-# 3. API mode
+# API test
 pip install -r requirements-api.txt
-uvicorn api.main:app --port 8001
+uvicorn api.main:app --reload --port 8001
 
-# 4. Docker (full stack)
-docker compose up
-
-# 5. Fly.io deploy
-flyctl launch --name mcprice --region ams
+# Fly.io redeploy
 flyctl deploy
+
+# Re-submit on mcpize.com
+# Dashboard â†’ mcprice â†’ Edit â†’ Save (triggers re-index with 16 tools)
+```
+
+---
+
+## Monetization Map (v3.0)
+
+```
+User asks Claude: "What is the Fear & Greed index?"
+  â†’ Tool 11 returns score=18 (Extreme Fear)
+  â†’ Response: "ðŸŸ¢ Strong BUY signal. NVDA/AAPL available on Revolut ðŸ’³"
+  â†’ User clicks Revolut referral link
+  â†’ You earn referral commission
+
+User asks Claude: "Any cluster insider buys I can trade on Revolut?"
+  â†’ Tool 14 fetches SEC data from your GitHub
+  â†’ Returns NVDA cluster buy + Revolut flag
+  â†’ User opens InsiderFlow Pro screener (your site)
+  â†’ Clicks Revolut / Binance affiliate link
+  â†’ Double monetization: MCP directory + affiliate
+
+User asks Claude: "Check if BTC hit $90K or AAPL dropped below $180"
+  â†’ Tool 16 fetches live prices
+  â†’ Returns triggered/pending verdict
+  â†’ User comes back every day â†’ more sessions
 ```
