@@ -32,6 +32,15 @@ from typing import List, Optional
 
 import httpx
 import yfinance as yf
+
+# === FIX TzCache Error για Cloud Run / Railway / Serverless ===
+# Το yfinance δεν μπορεί να γράψει στο /root/.cache → χρησιμοποιούμε /tmp
+import os
+os.makedirs("/tmp/py-yfinance", exist_ok=True)
+yf.set_tz_cache_location("/tmp/py-yfinance")
+print("✅ yfinance TzCache fixed to /tmp/py-yfinance")
+# ========================================================
+
 from fastapi import FastAPI, HTTPException, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
