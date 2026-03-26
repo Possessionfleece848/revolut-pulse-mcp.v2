@@ -50,10 +50,16 @@ from typing import List, Optional
 
 import httpx
 import yfinance as yf
-from fastmcp import FastMCP
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import Response
+import os
+
+# === FIX TzCache Error για Cloud Run / Railway ===
+try:
+    os.makedirs("/tmp/py-yfinance", exist_ok=True)
+    yf.set_tz_cache_location("/tmp/py-yfinance")
+    print("✅ yfinance TzCache set to /tmp/py-yfinance")
+except Exception as e:
+    print(f"⚠️  Could not set yfinance cache: {e}")
+# ================================================
 
 # ─────────────────────────────────────────────────────────────────────────────
 # LOGGING
