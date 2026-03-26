@@ -1,113 +1,557 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>mcprice: Real-Time Stock & Crypto MCP Server for Claude & Cursor | No API Key</title>
-    <meta name="description" content="Get live stock and crypto prices inside Claude or Cursor with mcprice. No API keys. 6 powerful tools including bulk pricing, top movers, and Revolut check. Free MCP server.">
-    <link rel="canonical" href="https://mcpize.com/mcp/mcprice">
-    <meta name="robots" content="index, follow">
-    <meta property="og:title" content="mcprice - Real-Time Market Data MCP Server">
-    <meta property="og:description" content="Real-time stock & crypto prices for Claude & Cursor. No API keys required.">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://mcpize.com/mcp/mcprice">
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="mcprice - MCP Server for Real-Time Prices">
-    <meta name="twitter:description" content="Live stock and crypto prices inside Claude and Cursor. No API keys.">
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      "name": "mcprice",
-      "description": "Real-time stock & crypto MCP server for Claude and Cursor. No API keys required.",
-      "applicationCategory": "DeveloperApplication",
-      "operatingSystem": "Cross-platform",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "USD"
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>mcprice v3 — Free MCP Server: Real-Time Stocks, Crypto, RSI/MACD, Fear & Greed, Insider Flow | Claude & Cursor</title>
+  <meta name="description" content="mcprice: 16 free MCP tools for Claude & Cursor. Live stock prices, crypto prices, RSI/MACD signals, Fear & Greed index, SEC insider flow, earnings calendar, Revolut checker. No API key. Free forever.">
+  <meta name="keywords" content="mcp server stocks, mcp server crypto prices, claude stock price tool, cursor stock mcp, real-time price mcp, rsi macd mcp claude, fear greed index mcp, insider trading mcp, revolut stock checker mcp, no api key stock mcp, free mcp finance, earnings calendar mcp">
+  <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large">
+  <link rel="canonical" href="https://mcpize.com/mcp/mcprice">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="mcprice v3 — 16 Free MCP Tools: Stocks, Crypto, RSI/MACD, Fear & Greed, Insider Flow">
+  <meta property="og:description" content="Give Claude & Cursor real-time market data. 16 tools, zero API keys. Stocks via yfinance, crypto via Binance, signals via RSI/MACD, sentiment via Fear & Greed, insider flow via SEC EDGAR.">
+  <meta property="og:url" content="https://mcpize.com/mcp/mcprice">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="mcprice v3 — Free MCP Server for Real-Time Market Data">
+  <meta name="twitter:description" content="16 MCP tools for Claude & Cursor. Stocks, crypto, RSI/MACD, Fear & Greed, SEC insider flow. No API key.">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "SoftwareApplication",
+        "name": "mcprice",
+        "version": "3.0",
+        "description": "Real-time stock & crypto MCP server for Claude and Cursor. 16 tools including technical signals, Fear & Greed index, SEC insider flow, earnings calendar, and price alert monitoring. No API keys required.",
+        "applicationCategory": "FinanceApplication",
+        "operatingSystem": "Cross-platform",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "featureList": [
+          "Live stock prices via yfinance",
+          "Real-time crypto prices via Binance",
+          "RSI-14, SMA20, SMA50, EMA9, MACD signals",
+          "Fear & Greed index with trading bias",
+          "SEC Form 4 insider flow scanner",
+          "Earnings calendar with EPS estimates",
+          "Crypto perpetual funding rates",
+          "Multi-ticker price alert monitoring",
+          "Revolut stock & crypto availability checker",
+          "Portfolio P&L calculator",
+          "Market overview dashboard",
+          "Sector scanner",
+          "No API key required",
+          "Free forever"
+        ],
+        "url": "https://mcpize.com/mcp/mcprice",
+        "sameAs": "https://github.com/gepappas98/revolut-pulse-mcp.v2",
+        "downloadUrl": "https://github.com/gepappas98/revolut-pulse-mcp.v2/archive/refs/heads/main.zip",
+        "author": { "@type": "Person", "name": "gepappas98" }
       },
-      "featureList": "get_price, get_prices_bulk, get_crypto_price, price_snapshot, revolut_price_check, crypto_top_movers",
-      "url": "https://mcpize.com/mcp/mcprice",
-      "sameAs": "https://github.com/gepappas98/revolut-pulse-mcp.v2",
-      "downloadUrl": "https://github.com/gepappas98/revolut-pulse-mcp.v2/archive/refs/heads/main.zip"
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "How do I get real-time stock prices in Claude?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Install mcprice MCP server. It connects Claude to live stock prices via yfinance with no API key required. Ask Claude: 'What is the current NVDA price?' and it will fetch real-time data instantly." }
+          },
+          {
+            "@type": "Question",
+            "name": "Can I get RSI and MACD signals inside Claude?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. mcprice v3 includes the technical_signals tool which computes RSI-14, SMA20, SMA50, EMA9, and MACD for any stock using yfinance historical data. No API key needed. Ask Claude: 'Is AAPL a buy? Show RSI and MACD.'" }
+          },
+          {
+            "@type": "Question",
+            "name": "What is the Fear and Greed index MCP tool?",
+            "acceptedAnswer": { "@type": "Answer", "text": "mcprice includes the fear_greed_index tool which fetches the current Fear & Greed score (0-100) from alternative.me, with a trading bias signal. Extreme Fear below 25 is historically the best entry point for stocks." }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I track SEC insider buying in Claude?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Use the insider_flow_scan tool in mcprice. It fetches live SEC Form 4 data updated every 2 hours via GitHub Actions, detects cluster buys (multiple insiders buying the same stock), and flags which are tradeable on Revolut." }
+          },
+          {
+            "@type": "Question",
+            "name": "Is mcprice really free with no API key?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Yes. All 16 tools in mcprice use free public APIs: yfinance (Yahoo Finance), Binance Public API, alternative.me, and SEC EDGAR via GitHub. No paid subscriptions, no API keys, no rate limit issues." }
+          },
+          {
+            "@type": "Question",
+            "name": "What stocks are available on Revolut?",
+            "acceptedAnswer": { "@type": "Answer", "text": "Revolut offers 4,000+ NYSE and NASDAQ-listed stocks. Use the revolut_price_check or revolut_sector_scan tools in mcprice to instantly check if any stock is tradeable on Revolut, with live prices." }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg: #0a0c10;
+      --s1: #0f1117;
+      --s2: #161b22;
+      --s3: #1c2333;
+      --b1: rgba(255,255,255,.07);
+      --b2: rgba(255,255,255,.13);
+      --green: #3fb950;
+      --blue: #58a6ff;
+      --purple: #bc8cff;
+      --amber: #d29922;
+      --red: #f85149;
+      --t1: #e6edf3;
+      --t2: #8b949e;
+      --t3: #484f58;
     }
-    </script>
-    <style>
-        /* Minimal styling for readability – keep your existing design if any */
-        body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.5; max-width: 1000px; margin: 0 auto; padding: 2rem; color: #111; background: #fff; }
-        h1 { font-size: 2.5rem; margin-bottom: 0.5rem; }
-        h2 { font-size: 1.8rem; margin-top: 2rem; border-bottom: 1px solid #eaecef; padding-bottom: 0.3rem; }
-        .badges { margin: 1rem 0; }
-        .badges span { background: #f0f0f0; padding: 0.2rem 0.6rem; border-radius: 20px; font-size: 0.8rem; margin-right: 0.5rem; }
-        pre { background: #f6f8fa; padding: 1rem; border-radius: 6px; overflow-x: auto; }
-        code { font-family: 'SF Mono', Monaco, monospace; }
-        .cta { background: #f0f7ff; padding: 1rem; border-radius: 8px; text-align: center; margin: 2rem 0; }
-        .cta a { background: #0969da; color: white; padding: 0.6rem 1.2rem; text-decoration: none; border-radius: 6px; display: inline-block; margin: 0.5rem; }
-        .cta a.github { background: #24292f; }
-        footer { margin-top: 3rem; font-size: 0.8rem; color: #57606a; border-top: 1px solid #eaecef; padding-top: 1rem; }
-    </style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--t1); line-height: 1.6; -webkit-font-smoothing: antialiased; }
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    code, pre { font-family: 'JetBrains Mono', monospace; }
+
+    /* HERO */
+    .hero { max-width: 900px; margin: 0 auto; padding: 64px 20px 48px; text-align: center; }
+    .hero-badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(63,185,80,.1); border: 1px solid rgba(63,185,80,.25); color: var(--green); padding: 4px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; margin-bottom: 20px; }
+    .hero h1 { font-size: clamp(28px, 5vw, 48px); font-weight: 800; line-height: 1.15; margin-bottom: 16px; }
+    .hero h1 span { background: linear-gradient(135deg, var(--green), var(--blue)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .hero p { font-size: 17px; color: var(--t2); max-width: 680px; margin: 0 auto 28px; }
+    .badge-row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 32px; }
+    .badge { background: var(--s2); border: 1px solid var(--b1); padding: 3px 11px; border-radius: 20px; font-size: 12px; color: var(--t2); font-family: 'JetBrains Mono', monospace; }
+    .badge.green { background: rgba(63,185,80,.1); color: var(--green); border-color: rgba(63,185,80,.25); }
+    .cta-row { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
+    .btn { padding: 10px 22px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; transition: opacity .15s, transform .15s; }
+    .btn:hover { opacity: .88; transform: translateY(-1px); text-decoration: none; }
+    .btn-primary { background: var(--green); color: #000; }
+    .btn-secondary { background: var(--s2); border: 1px solid var(--b2); color: var(--t1); }
+    .btn-github { background: #21262d; border: 1px solid var(--b2); color: var(--t1); }
+
+    /* SECTIONS */
+    section { max-width: 960px; margin: 0 auto; padding: 0 20px 56px; }
+    h2 { font-size: 24px; font-weight: 700; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid var(--b1); }
+    h2 span { color: var(--green); }
+
+    /* TOOLS GRID */
+    .tools-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+    .tool-card { background: var(--s1); border: 1px solid var(--b1); border-radius: 12px; padding: 16px 18px; transition: border-color .15s; }
+    .tool-card:hover { border-color: var(--b2); }
+    .tool-card.new { border-color: rgba(63,185,80,.3); background: linear-gradient(135deg, rgba(63,185,80,.04), var(--s1)); }
+    .tool-name { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; color: var(--blue); margin-bottom: 6px; }
+    .tool-name .new-badge { background: var(--green); color: #000; font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 4px; margin-left: 6px; vertical-align: middle; font-family: 'Inter', sans-serif; }
+    .tool-desc { font-size: 13px; color: var(--t2); line-height: 1.5; }
+    .tool-prompt { font-size: 11px; color: var(--t3); font-style: italic; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--b1); }
+
+    /* CODE BLOCK */
+    .code-block { background: var(--s1); border: 1px solid var(--b1); border-radius: 10px; overflow: hidden; margin-bottom: 16px; }
+    .code-header { background: var(--s2); padding: 8px 14px; font-size: 12px; color: var(--t3); border-bottom: 1px solid var(--b1); display: flex; align-items: center; gap: 8px; }
+    .code-header .dot { width: 10px; height: 10px; border-radius: 50%; }
+    pre { padding: 16px; font-size: 13px; overflow-x: auto; color: var(--t1); line-height: 1.6; }
+
+    /* COMPARISON TABLE */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th { padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 600; color: var(--t3); text-transform: uppercase; letter-spacing: .07em; background: var(--s2); border-bottom: 1px solid var(--b1); }
+    td { padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,.03); vertical-align: middle; }
+    tr:hover td { background: rgba(255,255,255,.02); }
+    .check { color: var(--green); font-weight: 700; }
+    .cross { color: var(--red); }
+    .highlight td { background: linear-gradient(90deg, rgba(63,185,80,.06), transparent); }
+    .highlight td:first-child { border-left: 2px solid var(--green); }
+
+    /* MONETIZATION */
+    .mono-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+    .mono-card { background: var(--s1); border: 1px solid var(--b1); border-radius: 12px; padding: 18px; }
+    .mono-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+    .mono-card p { font-size: 13px; color: var(--t2); line-height: 1.5; }
+    .mono-card .revenue { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--green); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--b1); }
+
+    /* FAQ */
+    details { border: 1px solid var(--b1); border-radius: 8px; margin-bottom: 8px; overflow: hidden; }
+    summary { padding: 14px 16px; font-size: 14px; font-weight: 600; cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center; background: var(--s1); }
+    summary::after { content: '+'; color: var(--blue); font-size: 18px; font-weight: 300; }
+    details[open] summary::after { content: '−'; }
+    details p { padding: 14px 16px; font-size: 14px; color: var(--t2); background: var(--s2); line-height: 1.6; }
+
+    /* FOOTER */
+    footer { max-width: 960px; margin: 0 auto; padding: 24px 20px 40px; border-top: 1px solid var(--b1); display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; font-size: 12px; color: var(--t3); }
+
+    @media (max-width: 640px) {
+      .hero { padding: 40px 16px 32px; }
+      .tools-grid, .mono-grid { grid-template-columns: 1fr; }
+    }
+  </style>
 </head>
 <body>
-    <h1>mcprice — Real-Time Market Data for AI Assistants</h1>
-    <div class="badges">
-        <span>finance</span> <span>stocks</span> <span>crypto</span> <span>MCP Server</span> <span>No API Key</span>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-badge">⚡ v3.0 — 16 Tools</div>
+  <h1>mcprice — <span>Free MCP Server</span><br>for Real-Time Market Data</h1>
+  <p>Give Claude, Cursor, and Cline live stock prices, crypto prices, RSI/MACD signals,
+     Fear & Greed index, SEC insider flow, earnings calendar, and price alert monitoring.
+     <strong style="color:var(--t1)">No API key. Free forever.</strong></p>
+  <div class="badge-row">
+    <span class="badge green">16 Tools</span>
+    <span class="badge">yfinance</span>
+    <span class="badge">Binance</span>
+    <span class="badge">SEC EDGAR</span>
+    <span class="badge">alternative.me</span>
+    <span class="badge green">No API Key</span>
+    <span class="badge">Python 3.12</span>
+    <span class="badge">MIT License</span>
+  </div>
+  <div class="cta-row">
+    <a href="https://mcpize.com/mcp/mcprice" class="btn btn-primary">⚡ Add to Claude</a>
+    <a href="https://github.com/gepappas98/revolut-pulse-mcp.v2" class="btn btn-github">⭐ Star on GitHub</a>
+    <a href="#quickstart" class="btn btn-secondary">📖 Quick Start</a>
+  </div>
+</section>
+
+<!-- TOOLS -->
+<section id="tools">
+  <h2>All <span>16 Tools</span></h2>
+  <div class="tools-grid">
+
+    <div class="tool-card">
+      <div class="tool-name">get_price</div>
+      <div class="tool-desc">Current price + 24h change for any stock or ETF. Revolut availability flag included.</div>
+      <div class="tool-prompt">"What is the current NVDA price?"</div>
     </div>
-    <p>Get live stock and crypto prices directly inside Claude or Cursor. No API keys. No setup headaches.</p>
 
-    <div class="cta">
-        <a href="https://github.com/gepappas98/revolut-pulse-mcp.v2" class="github">⭐ Star on GitHub</a>
-        <a href="https://railway.app/template/mcprice">🚀 Deploy on Railway</a>
-        <a href="https://github.com/gepappas98/revolut-pulse-mcp.v2#readme">📖 Read Docs</a>
+    <div class="tool-card">
+      <div class="tool-name">get_prices_bulk</div>
+      <div class="tool-desc">Fetch live prices for up to 20 tickers at once. Returns gainers & losers automatically.</div>
+      <div class="tool-prompt">"Give me AAPL, MSFT, TSLA, SPY prices"</div>
     </div>
 
-    <h2>🧰 6 Tools</h2>
-    <ul>
-        <li><strong>get_price</strong> — Current price + 24h change for any stock or ETF</li>
-        <li><strong>get_prices_bulk</strong> — Fetch up to 20 tickers at once</li>
-        <li><strong>get_crypto_price</strong> — Binance real-time crypto data (BTC, ETH, SOL...)</li>
-        <li><strong>price_snapshot</strong> — Full watchlist snapshot: stocks + crypto + market mood</li>
-        <li><strong>revolut_price_check</strong> — Price + "is this stock available on Revolut?"</li>
-        <li><strong>crypto_top_movers</strong> — Top gainers & losers from Binance 24h</li>
-    </ul>
+    <div class="tool-card">
+      <div class="tool-name">get_crypto_price</div>
+      <div class="tool-desc">Real-time crypto price from Binance. Supports BTC, ETH, SOL, XRP, DOGE, and 200+ more.</div>
+      <div class="tool-prompt">"BTC price right now"</div>
+    </div>
 
-    <h2>⚡ Why mcprice?</h2>
-    <p>Unlike traditional APIs, mcprice is built specifically for AI assistants. No API keys, no complex setup — just real‑time prices in your conversation. Perfect for portfolio tracking, trading journals, and AI‑powered analysis.</p>
+    <div class="tool-card">
+      <div class="tool-name">price_snapshot</div>
+      <div class="tool-desc">Full mixed watchlist snapshot — stocks + crypto in one call. Includes market mood indicator.</div>
+      <div class="tool-prompt">"Show my watchlist: NVDA, BTC, LMT, ETH"</div>
+    </div>
 
-    <h2>🚀 Quick Start</h2>
-    <p>Install in 2 minutes:</p>
-    <pre><code>git clone https://github.com/gepappas98/revolut-pulse-mcp.v2.git
+    <div class="tool-card">
+      <div class="tool-name">revolut_price_check</div>
+      <div class="tool-desc">Is this stock available on Revolut? Live price + instant tradeable verdict.</div>
+      <div class="tool-prompt">"Can I buy LMT on Revolut?"</div>
+    </div>
+
+    <div class="tool-card">
+      <div class="tool-name">revolut_watchlist</div>
+      <div class="tool-desc">Bulk Revolut check for a mixed list. Splits results into available vs not available.</div>
+      <div class="tool-prompt">"Which of these can I trade on Revolut?"</div>
+    </div>
+
+    <div class="tool-card">
+      <div class="tool-name">revolut_sector_scan</div>
+      <div class="tool-desc">Scan full sectors: tech, defense, crypto, finance, health, AI, ETF. Best Revolut pick of the day.</div>
+      <div class="tool-prompt">"Scan the defense sector for Revolut picks"</div>
+    </div>
+
+    <div class="tool-card">
+      <div class="tool-name">portfolio_pnl</div>
+      <div class="tool-desc">Real-time P&L for your portfolio. Pass ticker, qty, avg_price — get live profit/loss per asset.</div>
+      <div class="tool-prompt">"Calculate P&L: 10 NVDA @ $800, 0.5 BTC @ $40K"</div>
+    </div>
+
+    <div class="tool-card">
+      <div class="tool-name">market_overview</div>
+      <div class="tool-desc">Full dashboard — indices (SPY/QQQ/DIA/IWM), commodities (GLD/USO), crypto (BTC/ETH/SOL). No args needed.</div>
+      <div class="tool-prompt">"Give me a morning market overview"</div>
+    </div>
+
+    <div class="tool-card">
+      <div class="tool-name">crypto_top_movers</div>
+      <div class="tool-desc">Binance 24h gainers & losers across 100+ USDT pairs. Min volume filter included.</div>
+      <div class="tool-prompt">"What are the top crypto movers today?"</div>
+    </div>
+
+    <div class="tool-card new">
+      <div class="tool-name">fear_greed_index <span class="new-badge">NEW</span></div>
+      <div class="tool-desc">Current Fear & Greed score (0–100) with 5-day history and automated trading bias signal.</div>
+      <div class="tool-prompt">"What is the Fear & Greed index and should I buy NVDA?"</div>
+    </div>
+
+    <div class="tool-card new">
+      <div class="tool-name">earnings_calendar <span class="new-badge">NEW</span></div>
+      <div class="tool-desc">Next earnings date + EPS estimates. Flags which stocks are tradeable on Revolut for pre-earnings plays.</div>
+      <div class="tool-prompt">"When does NVDA report earnings? Can I trade it on Revolut?"</div>
+    </div>
+
+    <div class="tool-card new">
+      <div class="tool-name">technical_signals <span class="new-badge">NEW</span></div>
+      <div class="tool-desc">RSI-14, SMA20, SMA50, EMA9, MACD (12/26/9). Full buy/sell signal engine. No API key.</div>
+      <div class="tool-prompt">"Is AAPL a buy? Show me RSI and MACD"</div>
+    </div>
+
+    <div class="tool-card new">
+      <div class="tool-name">insider_flow_scan <span class="new-badge">NEW</span></div>
+      <div class="tool-desc">SEC Form 4 insider buying/selling. Cluster detection (multiple insiders = strong signal). Revolut flags.</div>
+      <div class="tool-prompt">"Any cluster insider buys I can trade on Revolut today?"</div>
+    </div>
+
+    <div class="tool-card new">
+      <div class="tool-name">crypto_funding_rates <span class="new-badge">NEW</span></div>
+      <div class="tool-desc">Binance perpetual futures funding rates — the best contrarian signal in crypto. Extreme rate = crowded trade.</div>
+      <div class="tool-prompt">"What are BTC and ETH funding rates? Long squeeze risk?"</div>
+    </div>
+
+    <div class="tool-card new">
+      <div class="tool-name">price_alert_check <span class="new-badge">NEW</span></div>
+      <div class="tool-desc">Multi-ticker price target monitoring. Pass alerts with direction (above/below) — instant triggered verdict.</div>
+      <div class="tool-prompt">"Has TSLA dropped below $200 or has BTC hit $100K?"</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- QUICK START -->
+<section id="quickstart">
+  <h2>⚡ <span>Quick Start</span> — 2 Minutes</h2>
+
+  <div class="code-block">
+    <div class="code-header">
+      <div class="dot" style="background:#ff5f57"></div>
+      <div class="dot" style="background:#febc2e"></div>
+      <div class="dot" style="background:#28c840"></div>
+      Option A — Local (stdio mode)
+    </div>
+    <pre>git clone https://github.com/gepappas98/revolut-pulse-mcp.v2.git
 cd revolut-pulse-mcp.v2
-uv run --with fastmcp,httpx python app.py</code></pre>
+uv run --with fastmcp,httpx,yfinance,pandas python app.py</pre>
+  </div>
 
-    <h2>🤖 Claude Desktop Setup</h2>
-    <p>Add to your <code>claude_desktop_config.json</code>:</p>
-    <pre><code>{
+  <div class="code-block">
+    <div class="code-header">
+      <div class="dot" style="background:#ff5f57"></div>
+      <div class="dot" style="background:#febc2e"></div>
+      <div class="dot" style="background:#28c840"></div>
+      claude_desktop_config.json
+    </div>
+    <pre>{
   "mcpServers": {
     "mcprice": {
       "command": "uv",
-      "args": ["run", "--with", "fastmcp,httpx", "python", "app.py"],
+      "args": ["run", "--with", "fastmcp,httpx,yfinance,pandas", "python", "app.py"],
       "cwd": "/path/to/revolut-pulse-mcp.v2"
     }
   }
-}</code></pre>
+}</pre>
+  </div>
 
-    <h2>📊 Data Sources & Reliability</h2>
-    <ul>
-        <li><strong>Stocks & ETFs</strong>: Yahoo Finance (no key, 15‑20 min delay on free tier)</li>
-        <li><strong>Crypto</strong>: Binance Public API (real‑time, no delay)</li>
-        <li><strong>Caching</strong>: 30s for stocks, 10s for crypto</li>
-        <li><strong>Auto‑retry</strong> with exponential backoff</li>
-    </ul>
+  <div class="code-block">
+    <div class="code-header">
+      <div class="dot" style="background:#ff5f57"></div>
+      <div class="dot" style="background:#febc2e"></div>
+      <div class="dot" style="background:#28c840"></div>
+      Option B — Remote (already live)
+    </div>
+    <pre>{
+  "mcpServers": {
+    "mcprice": {
+      "type": "streamable-http",
+      "url": "https://mcpize.com/mcp/mcprice"
+    }
+  }
+}</pre>
+  </div>
+</section>
 
-    <h2>🔗 Companion Server</h2>
-    <p>Works alongside <a href="https://mcpize.com/mcp/revolut-pulse">revolut-pulse-mcp</a> for insider trading alerts and SEC Form 4 data. Combine both for a complete market intelligence stack.</p>
+<!-- COMPARISON -->
+<section id="compare">
+  <h2>📊 <span>vs Competitors</span></h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Feature</th>
+          <th style="color:var(--green)">mcprice v3</th>
+          <th>Alpha Vantage MCP</th>
+          <th>Financial Datasets MCP</th>
+          <th>Polygon MCP</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="highlight">
+          <td><strong>API Key Required</strong></td>
+          <td class="check">✅ None</td>
+          <td class="cross">❌ Required</td>
+          <td class="cross">❌ Paid</td>
+          <td class="cross">❌ Required</td>
+        </tr>
+        <tr>
+          <td>Live Stock Prices</td>
+          <td class="check">✅ yfinance</td>
+          <td class="check">✅</td>
+          <td class="check">✅</td>
+          <td class="check">✅</td>
+        </tr>
+        <tr>
+          <td>Real-Time Crypto</td>
+          <td class="check">✅ Binance</td>
+          <td class="cross">❌</td>
+          <td class="cross">❌</td>
+          <td class="cross">❌</td>
+        </tr>
+        <tr class="highlight">
+          <td><strong>RSI / MACD / SMA</strong></td>
+          <td class="check">✅ Built-in</td>
+          <td class="cross">❌</td>
+          <td class="cross">❌</td>
+          <td class="cross">❌</td>
+        </tr>
+        <tr class="highlight">
+          <td><strong>Fear & Greed Index</strong></td>
+          <td class="check">✅ Built-in</td>
+          <td class="cross">❌</td>
+          <td class="cross">❌</td>
+          <td class="cross">❌</td>
+        </tr>
+        <tr class="highlight">
+          <td><strong>SEC Insider Flow</strong></td>
+          <td class="check">✅ Built-in</td>
+          <td class="cross">❌</td>
+          <td class="cross">❌</td>
+          <td class="cross">❌</td>
+        </tr>
+        <tr>
+          <td>Earnings Calendar</td>
+          <td class="check">✅ Built-in</td>
+          <td class="cross">❌</td>
+          <td class="cross">❌</td>
+          <td class="cross">❌</td>
+        </tr>
+        <tr>
+          <td>Funding Rates</td>
+          <td class="check">✅ Binance perp</td>
+          <td class="cross">❌</td>
+          <td class="cross">❌</td>
+          <td class="cross">❌</td>
+        </tr>
+        <tr>
+          <td>Price Alert Monitor</td>
+          <td class="check">✅ Built-in</td>
+          <td class="cross">❌</td>
+          <td class="cross">❌</td>
+          <td class="cross">❌</td>
+        </tr>
+        <tr>
+          <td>Revolut Filter</td>
+          <td class="check">✅ Built-in</td>
+          <td class="cross">❌</td>
+          <td class="cross">❌</td>
+          <td class="cross">❌</td>
+        </tr>
+        <tr class="highlight">
+          <td><strong>Total Tools</strong></td>
+          <td class="check"><strong>16</strong></td>
+          <td>6</td>
+          <td>5</td>
+          <td>8</td>
+        </tr>
+        <tr>
+          <td><strong>Cost</strong></td>
+          <td class="check"><strong>🆓 Free</strong></td>
+          <td>Freemium</td>
+          <td>Paid</td>
+          <td>Freemium</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
 
-    <h2>📄 License & Disclaimer</h2>
-    <p><strong>⚠️ Not financial advice.</strong> Data may be delayed. See <a href="https://github.com/gepappas98/revolut-pulse-mcp.v2/blob/main/README.md#-notes">Terms of Use</a>.</p>
+<!-- FAQ (SEO GOLD) -->
+<section id="faq">
+  <h2>❓ <span>Frequently Asked Questions</span></h2>
 
-    <footer>
-        <p>mcprice is an open‑source MCP server. Contribute on <a href="https://github.com/gepappas98/revolut-pulse-mcp.v2">GitHub</a>.</p>
-    </footer>
+  <details open>
+    <summary>How do I get real-time stock prices in Claude?</summary>
+    <p>Install mcprice MCP server locally with <code>uv run --with fastmcp,httpx,yfinance,pandas python app.py</code> or add the remote URL to your <code>claude_desktop_config.json</code>. Then ask Claude: <em>"What is the current NVDA price?"</em> and it fetches live data instantly. No API key needed.</p>
+  </details>
+
+  <details>
+    <summary>Can I get RSI and MACD buy/sell signals inside Claude?</summary>
+    <p>Yes. The <code>technical_signals</code> tool (new in v3.0) computes RSI-14, SMA20, SMA50, EMA9, and MACD (12/26/9) for any stock using yfinance historical data. It returns a full buy/sell signal with an overall verdict: STRONG BUY, MILD BUY, NEUTRAL, MILD SELL, or STRONG SELL. Ask Claude: <em>"Is AAPL a buy right now? Show RSI and MACD."</em></p>
+  </details>
+
+  <details>
+    <summary>What is the Fear & Greed index and how do I use it in Claude?</summary>
+    <p>The Fear & Greed Index measures market sentiment from 0 (Extreme Fear) to 100 (Extreme Greed). Historically, scores below 25 represent the best long-term entry points for stocks. mcprice's <code>fear_greed_index</code> tool fetches the current score from alternative.me with no API key and returns an automated trading bias signal. Ask Claude: <em>"What is the Fear & Greed index today?"</em></p>
+  </details>
+
+  <details>
+    <summary>How do I track SEC insider buying in Claude or Cursor?</summary>
+    <p>Use the <code>insider_flow_scan</code> tool. It fetches live SEC Form 4 data (updated every 2 hours via GitHub Actions), detects cluster buys when multiple insiders buy the same stock simultaneously — one of the strongest bullish signals — and flags which stocks are immediately tradeable on Revolut. Ask Claude: <em>"Are there any cluster insider buys I can trade on Revolut today?"</em></p>
+  </details>
+
+  <details>
+    <summary>How do I get Binance funding rates for crypto in Claude?</summary>
+    <p>The <code>crypto_funding_rates</code> tool fetches live perpetual futures funding rates from Binance. A high positive rate means longs are paying heavily — a crowded trade and potential squeeze signal. Negative rates mean shorts are paying — a contrarian buy signal. Ask Claude: <em>"What are BTC and ETH funding rates? Is there long squeeze risk?"</em></p>
+  </details>
+
+  <details>
+    <summary>What stocks are available on Revolut?</summary>
+    <p>Revolut offers 4,000+ NYSE and NASDAQ-listed stocks including Apple (AAPL), Tesla (TSLA), Nvidia (NVDA), Meta (META), and many more. Use the <code>revolut_price_check</code> or <code>revolut_sector_scan</code> tools in mcprice to instantly verify any stock's Revolut availability with a live price. Revolut itself is not publicly traded — expected IPO on Nasdaq or LSE in 2026–2027.</p>
+  </details>
+
+  <details>
+    <summary>Is mcprice really free with no API key?</summary>
+    <p>Yes, completely. All 16 tools use free public APIs: yfinance (Yahoo Finance with automatic auth handling), Binance Public API (no key for spot and futures data), alternative.me (Fear & Greed), and SEC EDGAR via GitHub Actions. No paid subscriptions, no rate limit headaches, no credit card required. The server is also self-hostable on Fly.io free tier.</p>
+  </details>
+
+  <details>
+    <summary>How do I set price alerts in Claude using mcprice?</summary>
+    <p>Use the <code>price_alert_check</code> tool. Pass a list of alerts with ticker, target price, and direction (above/below). Claude will fetch live prices and tell you which targets have been triggered. For example: <em>"Has TSLA dropped below $200 or has BTC hit $100,000?"</em> — the tool returns an instant triggered/pending verdict for each alert with a Revolut trade CTA if the target is hit.</p>
+  </details>
+</section>
+
+<!-- RELATED -->
+<section id="related">
+  <h2>🔗 <span>Related Projects</span></h2>
+  <div class="mono-grid">
+    <div class="mono-card">
+      <h3>📊 InsiderFlow Pro</h3>
+      <p>Full-featured insider trading screener with Revolut filter, cluster buy detection, Hunter Score ranking, and 5-minute auto-refresh. Built on the same SEC EDGAR data pipeline.</p>
+      <div class="revenue"><a href="https://revolut-pulse.lovable.app/insiderflow-pro-v2.html" style="color:var(--green)">→ revolut-pulse.lovable.app</a></div>
+    </div>
+    <div class="mono-card">
+      <h3>📦 mcpize Listing</h3>
+      <p>mcprice is listed on mcpize.com — the MCP server directory. Add it to Claude Desktop or Cursor in one click from the marketplace.</p>
+      <div class="revenue"><a href="https://mcpize.com/mcp/mcprice" style="color:var(--green)">→ mcpize.com/mcp/mcprice</a></div>
+    </div>
+    <div class="mono-card">
+      <h3>💳 Trade on Revolut</h3>
+      <p>4,000+ NYSE/NASDAQ stocks. Commission-free trading. Instant buy/sell from mobile. Use mcprice to identify opportunities, then act on Revolut.</p>
+      <div class="revenue"><a href="https://revolut.com/referral/?referral-code=georgi675!MAR1-26-AR&geo-redirect" rel="nofollow" style="color:var(--green)">→ Open Revolut Account</a></div>
+    </div>
+    <div class="mono-card">
+      <h3>🟡 Trade on Binance</h3>
+      <p>350+ crypto pairs. Spot, Futures, Options. Use mcprice funding rates to time entries, then execute on Binance with 50% lifetime fee rebate.</p>
+      <div class="revenue"><a href="https://www.binance.com/activity/referral-entry/CPA?ref=CPA_00WY786BTV" rel="nofollow" style="color:var(--green)">→ Join Binance — 50% fees</a></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <span>© 2026 mcprice v3.0 — MIT License — Free MCP Server for Real-Time Market Data</span>
+  <span>
+    <a href="https://github.com/gepappas98/revolut-pulse-mcp.v2">GitHub</a> ·
+    <a href="https://mcpize.com/mcp/mcprice">mcpize</a> ·
+    <a href="https://revolut-pulse.lovable.app/insiderflow-pro-v2.html">InsiderFlow Pro</a>
+  </span>
+</footer>
+
 </body>
 </html>
