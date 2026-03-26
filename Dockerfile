@@ -1,13 +1,13 @@
 FROM python:3.12-slim
+
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt && pip list | grep yfinance
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py .
 COPY config/ ./config/
 
-ENV MCP_TRANSPORT=http
 ENV PORT=8080
 EXPOSE 8080
 
