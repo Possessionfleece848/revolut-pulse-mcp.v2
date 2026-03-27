@@ -1,15 +1,15 @@
 FROM python:3.12-slim
-
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt requirements-api.txt ./
+RUN pip install --no-cache-dir -r requirements-api.txt
 
 COPY app.py .
-COPY config/ ./config/
+COPY api/ api/
+COPY seo/ seo/
+COPY config/ config/
 
-ENV MCP_TRANSPORT=http
-ENV PORT=8080
-EXPOSE 8080
+ENV BASE_URL=https://mcprice.fly.dev
+EXPOSE 8001
 
-CMD ["python", "app.py"]
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8001"]
