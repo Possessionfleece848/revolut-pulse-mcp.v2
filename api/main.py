@@ -103,7 +103,7 @@ async def _yahoo(ticker: str) -> dict:
             "source":     "yfinance",
             "revolut":    ticker in REVOLUT_STOCKS,
         }
-    result = await asyncio.get_event_loop().run_in_executor(None, _sync)
+    result = await asyncio.get_running_loop().run_in_executor(None, _sync)
     _ttl_set(f"y:{ticker}", result, 30)
     return result
 
@@ -194,16 +194,7 @@ async def get_prices_bulk(
     }
 
 # ─── CRYPTO ───────────────────────────────────────────────────────────────────
-
-@app.get("/crypto/{symbol}", tags=["Crypto"])
-async def get_crypto(symbol: str):
-    """Crypto price from Binance (real-time, 10s cache)."""
-    symbol = symbol.upper().replace("USDT", "").strip()
-    try:
-        return await _binance(symbol)
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=str(e))
-
+# NOTE: /crypto/movers MUST be before /crypto/{symbol} to avoid route shadowing
 
 @app.get("/crypto/movers", tags=["Crypto"])
 async def crypto_movers(
@@ -242,6 +233,15 @@ async def crypto_movers(
         "total_pairs_scanned":   len(filtered),
     }
 
+
+@app.get("/crypto/{symbol}", tags=["Crypto"])
+async def get_crypto(symbol: str):
+    """Crypto price from Binance (real-time, 10s cache)."""
+    symbol = symbol.upper().replace("USDT", "").strip()
+    try:
+        return await _binance(symbol)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
 # ─── REVOLUT ──────────────────────────────────────────────────────────────────
 
 @app.get("/revolut/stocks", tags=["Revolut"])
@@ -401,7 +401,7 @@ async def earnings_calendar(
         except Exception as exc:
             return {"ticker": ticker, "error": str(exc)}
 
-    loop    = asyncio.get_event_loop()
+    loop    = asyncio.get_running_loop()
     results = await asyncio.gather(*[loop.run_in_executor(None, _fetch, s) for s in symbols])
     today   = time.strftime("%Y-%m-%d")
     upcoming = sorted(
@@ -489,7 +489,7 @@ async def technical_signals(
         }
 
     try:
-        loop   = asyncio.get_event_loop()
+        loop   = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, _calc)
         return result
     except Exception as exc:

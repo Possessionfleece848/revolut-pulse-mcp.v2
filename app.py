@@ -50,7 +50,6 @@ from typing import List, Optional
 
 import httpx
 import yfinance as yf
-import os
 
 # === FIX TzCache Error για Cloud Run / Railway ===
 try:
@@ -64,6 +63,8 @@ except Exception as e:
 # === MCP Server Imports ===
 from fastmcp import FastMCP
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
 # ==================================
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -95,7 +96,7 @@ class HealthMiddleware(BaseHTTPMiddleware):
     """
     async def dispatch(self, request: Request, call_next):
         if request.url.path == "/health" and request.method in ("GET", "HEAD"):
-            body = b'{"status":"ok","service":"mcprice","version":"2.2"}'
+            body = b'{"status":"ok","service":"mcprice","version":"3.0"}'
             return Response(
                 content=body if request.method == "GET" else b"",
                 status_code=200,
@@ -323,7 +324,7 @@ async def _yfinance_quote(ticker: str) -> dict:
             "source":     "yfinance",
         }
 
-    return await asyncio.get_event_loop().run_in_executor(None, _sync)
+    return await asyncio.get_running_loop().run_in_executor(None, _sync)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PROVIDER — Binance
@@ -867,18 +868,6 @@ async def revolut_sector_scan(sector: str) -> dict:
 # ENTRY POINT
 # ─────────────────────────────────────────────────────────────────────────────
 
-if __name__ == "__main__":
-    transport = os.environ.get("MCP_TRANSPORT", "stdio")
-    if transport == "http":
-        port = int(os.environ.get("PORT", "8080"))
-        logger.info("mcprice v2.2 — http://0.0.0.0:%d/mcp", port)
-        app = mcp.http_app()
-        app.add_middleware(HealthMiddleware)
-        import uvicorn
-        uvicorn.run(app, host="0.0.0.0", port=port)
-    else:
-        logger.info("mcprice v2.2 — stdio mode")
-        mcp.run(transport="stdio")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TOOL 11 — fear_greed_index
@@ -1014,7 +1003,7 @@ async def earnings_calendar(tickers: List[str]) -> dict:
         except Exception as exc:
             return {"ticker": ticker, "error": str(exc)}
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     tasks = [
         loop.run_in_executor(None, _fetch_earnings, t.upper().strip())
         for t in tickers[:15]
@@ -1143,7 +1132,7 @@ async def technical_signals(ticker: str, period: str = "3mo") -> dict:
         }
 
     try:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, _calc, ticker, period)
         return result
     except Exception as exc:
@@ -1398,3 +1387,17 @@ async def price_alert_check(alerts: List[dict]) -> dict:
             f"🚨 {len(triggered)} alerts TRIGGERED! " if triggered else "✅ No alerts triggered yet. "
         ) + f"{len(safe)} still pending.",
     }
+
+
+if __name__ == "__main__":
+    transport = os.environ.get("MCP_TRANSPORT", "stdio")
+    if transport == "http":
+        port = int(os.environ.get("PORT", "8080"))
+        logger.info("mcprice v3.0 — http://0.0.0.0:%d/mcp", port)
+        app = mcp.http_app()
+        app.add_middleware(HealthMiddleware)
+        import uvicorn
+        uvicorn.run(app, host="0.0.0.0", port=port)
+    else:
+        logger.info("mcprice v3.0 — stdio mode")
+        mcp.run(transport="stdio")
