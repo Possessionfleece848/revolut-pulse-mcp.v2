@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "mcprice-local": {
+      "_comment": "Local mode — pandas required for RSI/MACD (technical_signals tool)",
+      "command": "uv",
+      "args": [
+        "run",
+        "--with", "fastmcp,httpx,yfinance,pandas",
+        "python", "app.py"
+      ],
+      "cwd": "/REPLACE/WITH/YOUR/PATH/revolut-pulse-mcp.v2"
+    },
+    "mcprice-remote": {
+      "_comment": "Remote mode — no setup needed, works instantly",
+      "type": "streamable-http",
+      "url": "https://mcpize.com/mcp/mcprice"
+    }
+  }
+}
